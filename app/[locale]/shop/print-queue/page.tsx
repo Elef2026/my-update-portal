@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Printer, CheckCircle } from "lucide-react";
+import { Printer, CheckCircle, Download } from "lucide-react";
+import { confirmPrintedAndLogRevenue } from "@/app/actions/settlement";
 
 export default function PrintQueuePage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -16,7 +18,6 @@ export default function PrintQueuePage() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      // The backend /api/orders automatically filters for this shop's orders
       const res = await fetch("/api/orders?status=READY_FOR_PRINT_SHOP");
       if (res.ok) {
         const data = await res.json();
@@ -29,19 +30,23 @@ export default function PrintQueuePage() {
     }
   };
 
-  const markAsDelivered = async (orderId: string) => {
+  const handleMarkAsPrinted = async (orderId: string, shopId: string) => {
+    if (!confirm("ፕሪንት ማጠናቀቅዎን እና ገቢዎን መመዝገብዎን ያረጋግጣሉ? (Confirm print & log revenue?)")) return;
+
+    setProcessingId(orderId);
     try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, newStatus: "DELIVERED_TO_CUSTOMER" })
-      });
-      if (res.ok) {
+      const res = await confirmPrintedAndLogRevenue(orderId, shopId);
+      if (res.success) {
         setOrders((prev) => prev.filter((o) => o.id !== orderId));
-        alert("በተሳካ ሁኔታ አልቋል (Completed successfully)");
+        alert("ፕሪንት መደረጉ እና ገቢዎ በተሳካ ሁኔታ ተመዝግቧል! (Revenue officially logged)");
+      } else {
+        alert(res.error || "ስህተት ተፈጥሯል");
       }
     } catch (err) {
-      console.error("Failed to update status", err);
+      console.error(err);
+      alert("ስህተት ተፈጥሯል");
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -66,7 +71,9 @@ export default function PrintQueuePage() {
             <Printer className="h-6 w-6" /> 
             ፕሪንት የሚደረጉ (Print Queue)
           </h1>
-          <p className="text-muted-foreground mt-1">አድሚኑ አብዴት አድርጎ የጨረሳቸው እና ለደንበኛው ፕሪንት አድርገው የሚሰጧቸው ሰነዶች።</p>
+          <p className="text-muted-foreground mt-1">
+            አድሚኑ ሰርቶ የላካቸውን ፋይሎች አውርደው ፕሪንት ሲያደርጉ "ፕሪንት አድርጌያለሁ" የሚለውን በመጫን ገቢዎን ያስመዝግቡ።
+          </p>
         </div>
         <Button variant="outline" onClick={fetchOrders}>አድስ (Refresh)</Button>
       </div>
@@ -81,19 +88,32 @@ export default function PrintQueuePage() {
               <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
             </CardHeader>
             <CardContent>
-              <div className="bg-muted p-3 rounded text-sm space-y-1">
-                <p><strong>የተመረጡ አገልግሎቶች:</strong> {order.selectedServices?.join(", ")}</p>
-                <p><strong>ፋይሉ ያለበት:</strong> 
-                  <a href="#" className="text-indigo-600 underline ml-1 font-semibold">ፋይሉን አውርድ (Download File)</a>
-                </p>
+              <div className="bg-muted p-3 rounded text-sm space-y-2">
+                <p><strong>አገልግሎቶች:</strong> {order.selectedServices?.join(", ")}</p>
+                <p><strong>የእርስዎ ገቢ:</strong> <span className="font-bold text-emerald-600">{order.shopEarnings || order.totalPaid} ETB</span></p>
+                
+                {order.adminAttachmentUrl ? (
+                  <a 
+                    href={order.adminAttachmentUrl} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-indigo-600 font-semibold underline text-sm pt-1"
+                  >
+                    <Download className="w-4 h-4" /> ፋይሉን አውርድ (Download Print File)
+                  </a>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">ፋይል አልተያያዘም</p>
+                )}
               </div>
             </CardContent>
             <CardFooter className="mt-auto">
               <Button 
-                className="w-full bg-indigo-500 hover:bg-indigo-600 flex items-center gap-2"
-                onClick={() => markAsDelivered(order.id)}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2 text-white font-medium"
+                disabled={processingId === order.id}
+                onClick={() => handleMarkAsPrinted(order.id, order.shopId)}
               >
-                <CheckCircle className="h-4 w-4" /> ፕሪንት አድርጌ ሰጥቻለሁ (Mark as Printed)
+                <CheckCircle className="h-4 w-4" /> 
+                {processingId === order.id ? "በመመዝገብ ላይ..." : "ፕሪንት አድርጌያለሁ (Printed)"}
               </Button>
             </CardFooter>
           </Card>

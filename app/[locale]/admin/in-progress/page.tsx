@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Clock, CheckCircle, XCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { rejectTaskWithReason } from "@/app/actions/settlement";
 
 export default function InProgressPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto-refresh state every minute or fetch initially
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -37,11 +41,35 @@ export default function InProgressPage() {
         body: JSON.stringify({ orderId, newStatus })
       });
       if (res.ok) {
-        // Remove from list
         setOrders((prev) => prev.filter((o) => o.id !== orderId));
       }
     } catch (err) {
       console.error("Failed to update status", err);
+    }
+  };
+
+  const handleReject = async (orderId: string) => {
+    if (!rejectionReason.trim()) {
+      alert("እባክዎ የውድቅ ማድረጊያ ምክንያት ያስገቡ (Rejection reason is required)");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await rejectTaskWithReason(orderId, rejectionReason);
+      if (res.success) {
+        setOrders((prev) => prev.filter((o) => o.id !== orderId));
+        setRejectingOrderId(null);
+        setRejectionReason("");
+        alert("ስራው ውድቅ ተደርጓል፤ ምክንያቱም ለማተሚያ ቤቱ ታይቷል");
+      } else {
+        alert(res.error || "ስህተት ተፈጥሯል");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("ስህተት ተፈጥሯል");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -76,7 +104,14 @@ export default function InProgressPage() {
           <OrderCard 
             key={order.id} 
             order={order} 
-            onStatusUpdate={updateOrderStatus} 
+            onSendToPrint={(id) => updateOrderStatus(id, "READY_FOR_PRINT_SHOP")}
+            isRejecting={rejectingOrderId === order.id}
+            rejectionReason={rejectionReason}
+            onSetRejectionReason={setRejectionReason}
+            onStartReject={(id) => { setRejectingOrderId(id); setRejectionReason(""); }}
+            onCancelReject={() => { setRejectingOrderId(null); setRejectionReason(""); }}
+            onConfirmReject={handleReject}
+            isSubmitting={isSubmitting}
           />
         ))}
       </div>
@@ -84,13 +119,33 @@ export default function InProgressPage() {
   );
 }
 
-function OrderCard({ order, onStatusUpdate }: { order: any, onStatusUpdate: (id: string, s: string) => void }) {
+function OrderCard({ 
+  order, 
+  onSendToPrint, 
+  isRejecting, 
+  rejectionReason, 
+  onSetRejectionReason, 
+  onStartReject, 
+  onCancelReject, 
+  onConfirmReject,
+  isSubmitting
+}: { 
+  order: any;
+  onSendToPrint: (id: string) => void;
+  isRejecting: boolean;
+  rejectionReason: string;
+  onSetRejectionReason: (val: string) => void;
+  onStartReject: (id: string) => void;
+  onCancelReject: () => void;
+  onConfirmReject: (id: string) => void;
+  isSubmitting: boolean;
+}) {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [isOverdue, setIsOverdue] = useState(false);
 
   useEffect(() => {
     if (!order.deadline) {
-      setTimeLeft("የቀን ገደብ የለውም (No deadline)");
+      setTimeLeft("የቀን ገደብ የለውም");
       return;
     }
 
@@ -127,37 +182,70 @@ function OrderCard({ order, onStatusUpdate }: { order: any, onStatusUpdate: (id:
         </CardTitle>
         <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
         {order.shop?.shopName && (
-           <p className="text-xs text-muted-foreground pt-1">ከ: {order.shop.shopName}</p>
+           <p className="text-xs text-muted-foreground pt-1">ማተሚያ ቤት: {order.shop.shopName}</p>
         )}
       </CardHeader>
       
       <CardContent className="space-y-4">
         <div className="bg-muted p-3 rounded text-sm space-y-1">
-          <p><strong>የተመረጡ አገልግሎቶች:</strong> {order.selectedServices?.join(", ")}</p>
-          <p><strong>ክፍያ:</strong> {order.paymentMethod === "CHAPA" ? "በቻፓ" : "ጥሬ ገንዘብ"} ({order.totalPaid} ETB)</p>
+          <p><strong>አገልግሎቶች:</strong> {order.selectedServices?.join(", ")}</p>
+          <p><strong>ክፍያ:</strong> {order.paymentMethod === "CHAPA" ? "በቻፓ (Admin holds)" : "ጥሬ ገንዘብ (Shop holds)"} ({order.totalPaid} ETB)</p>
         </div>
 
-        <div className={`p-3 rounded-md text-center font-mono font-bold ${isOverdue ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-600'}`}>
+        <div className={`p-2.5 rounded-md text-center font-mono font-bold ${isOverdue ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-600'}`}>
           {timeLeft}
         </div>
+
+        {isRejecting && (
+          <div className="space-y-2 pt-2 border-t">
+            <label className="text-xs font-semibold text-destructive flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" /> የውድቅ ማድረጊያ ምክንያት (Rejection Reason)
+            </label>
+            <Input 
+              placeholder="ምክንያቱን እዚህ ይጻፉ (ለምሳሌ: የተያያዘው ፎቶ ግልጽ አይደለም)..."
+              value={rejectionReason}
+              onChange={(e) => onSetRejectionReason(e.target.value)}
+              className="text-xs"
+            />
+          </div>
+        )}
       </CardContent>
 
-      <CardFooter className="flex gap-2 mt-auto">
-        {isOverdue ? (
-          <Button 
-            variant="destructive" 
-            className="w-full flex items-center gap-2"
-            onClick={() => onStatusUpdate(order.id, "REJECTED")}
-          >
-            <XCircle className="h-4 w-4" /> ሪጀክት (Refund)
-          </Button>
+      <CardFooter className="flex flex-col gap-2 mt-auto">
+        {isRejecting ? (
+          <div className="flex gap-2 w-full">
+            <Button 
+              variant="destructive" 
+              className="w-full text-xs"
+              disabled={isSubmitting}
+              onClick={() => onConfirmReject(order.id)}
+            >
+              {isSubmitting ? "በማስመዝገብ ላይ..." : "ውድቅ ማድረጉን አረጋግጥ"}
+            </Button>
+            <Button 
+              variant="outline" 
+              className="text-xs"
+              onClick={onCancelReject}
+            >
+              ሰርዝ
+            </Button>
+          </div>
         ) : (
-          <Button 
-            className="w-full bg-emerald-500 hover:bg-emerald-600 flex items-center gap-2 text-white"
-            onClick={() => onStatusUpdate(order.id, order.orderType === "UPDATE_ONLY" ? "DELIVERED_TO_CUSTOMER" : "READY_FOR_PRINT_SHOP")}
-          >
-            <CheckCircle className="h-4 w-4" /> {order.orderType === "UPDATE_ONLY" ? "አልቋል (Completed)" : "ወደ ፕሪንት ላክ"}
-          </Button>
+          <div className="flex gap-2 w-full">
+            <Button 
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 text-xs"
+              onClick={() => onSendToPrint(order.id)}
+            >
+              <CheckCircle className="h-4 w-4" /> ወደ ፕሪንት ላክ (Send to Print)
+            </Button>
+            <Button 
+              variant="outline" 
+              className="text-destructive border-destructive/50 hover:bg-destructive hover:text-white flex items-center justify-center gap-1 text-xs"
+              onClick={() => onStartReject(order.id)}
+            >
+              <XCircle className="h-4 w-4" /> ውድቅ አድርግ
+            </Button>
+          </div>
         )}
       </CardFooter>
     </Card>

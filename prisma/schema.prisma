@@ -20,12 +20,14 @@ enum OrderSource {
 }
 
 enum OrderStatus {
-  PENDING_PAYMENT // Waiting for customer to pay online or at shop
-  PAID // Paid, ready for Admin to process
-  ADMIN_PROCESSING // Admin is working on it
-  READY_FOR_PRINT_SHOP // Admin finished, sent back to shop for delivery
-  DELIVERED_TO_CUSTOMER // Customer received it, order closed
-  REJECTED // Rejected by admin, or deadline passed
+  PENDING_PAYMENT
+  PAID
+  ADMIN_PROCESSING
+  READY_FOR_PRINT_SHOP
+  PRINTED_AWAITING_SETTLEMENT
+  SETTLED_ARCHIVED
+  REJECTED
+  REFUNDED
 }
 
 enum OrderType {
@@ -44,6 +46,18 @@ enum PaymentStatus {
   PAID
   REFUND_REQUESTED
   REFUNDED
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum UpdateType {
@@ -141,12 +155,28 @@ model Order {
 
   refundReceiptUrl String?
 
+  customerAttachmentUrl String?
+  adminAttachmentUrl    String?
+
+  // Rejection & Dispute Tracking
+  rejectionReason String?   @db.Text
+  rejectedAt      DateTime?
+
+  // Print Tracking
+  printedAt DateTime?
+
+  // Settlement link
+  settlementId String?
+  settlement   WeeklySettlement? @relation(fields: [settlementId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shop         User?       @relation("ShopOrders", fields: [shopId], references: [id])
-  assignedShop User?       @relation("AssignedAdminOrders", fields: [assignedShopId], references: [id])
-  files        OrderFile[]
+  shop           User?           @relation("ShopOrders", fields: [shopId], references: [id])
+  assignedShop   User?           @relation("AssignedAdminOrders", fields: [assignedShopId], references: [id])
+  files          OrderFile[]
+  transactions   Transaction[]
+  refundRequests RefundRequest[]
 }
 
 model OrderFile {
@@ -158,6 +188,12 @@ model OrderFile {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
+enum SettlementStatus {
+  DRAFT
+  PENDING_SHOP_APPROVAL
+  APPROVED_AND_ARCHIVED
+}
+
 model WeeklySettlement {
   id            String           @id @default(uuid())
   shopId        String
@@ -166,17 +202,39 @@ model WeeklySettlement {
   totalEarned   Decimal          @db.Decimal(10, 2) // Total shop earnings
   totalOwed     Decimal          @db.Decimal(10, 2) // Cash the shop collected that belongs to admin
   netPayout     Decimal          @db.Decimal(10, 2) // Positive means Admin pays Shop, Negative means Shop pays Admin
-  status        SettlementStatus @default(PENDING)
+  status        SettlementStatus @default(DRAFT)
   receiptUrl    String? // Admin uploaded receipt
   shopVerified  Boolean          @default(false)
+  approvedAt    DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  shop User @relation(fields: [shopId], references: [id])
+  orders Order[]
+  shop   User    @relation(fields: [shopId], references: [id])
 }
 
-enum SettlementStatus {
-  PENDING
-  PAID_BY_ADMIN
-  COMPLETED
+model Transaction {
+  id            String            @id @default(uuid())
+  orderId       String
+  shopId        String
+  paymentMethod PaymentMethod
+  amount        Decimal           @db.Decimal(10, 2)
+  status        TransactionStatus @default(PENDING)
+  createdAt     DateTime          @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model RefundRequest {
+  id         String       @id @default(uuid())
+  orderId    String
+  shopId     String
+  amount     Decimal      @db.Decimal(10, 2)
+  reason     String       @db.Text
+  receiptUrl String?
+  status     RefundStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
