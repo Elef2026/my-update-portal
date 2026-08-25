@@ -26,7 +26,7 @@ export async function GET(request: Request) {
         // 2. Update Order status in Database
         const updatedOrder = await prisma.order.update({
           where: { id: orderId },
-          data: { status: "PAYMENT_DONE" },
+          data: { status: "PAID", paymentStatus: "PAID" },
         });
 
         // 3. Send SMS Notification (Stage 1)

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendSmsNotification } from "@/lib/sms";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {

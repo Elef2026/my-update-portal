@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { PrismaClient, OrderStatus, OrderSource } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { sendSmsNotification, SmsTemplates } from "@/lib/sms";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
