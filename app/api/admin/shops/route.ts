@@ -6,6 +6,32 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+export async function GET(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const shops = await prisma.user.findMany({
+      where: { role: "PRINT_SHOP" },
+      select: {
+        id: true,
+        shopName: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return NextResponse.json(shops);
+  } catch (error) {
+    console.error("Error fetching shops:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
