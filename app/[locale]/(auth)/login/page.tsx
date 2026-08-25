@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
@@ -37,8 +37,12 @@ export default function LoginPage({ params: { locale } }: { params: { locale: st
     if (result?.error) {
       setError("የተሳሳተ ኢሜል ወይም የይለፍ ቃል (Invalid credentials)");
     } else {
-      // Successfully logged in, navigate to the shop dashboard
-      router.push(`/${locale}/shop`);
+      const session = await getSession();
+      if (session?.user?.role === "ADMIN") {
+        router.push(`/${locale}/admin`);
+      } else {
+        router.push(`/${locale}/shop`);
+      }
       router.refresh();
     }
   };

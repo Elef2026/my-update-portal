@@ -21,12 +21,6 @@ export default function LandingPage({ params: { locale } }: { params: { locale: 
           >
             {t("login")}
           </Link>
-          <Link
-            href={`/${locale}/register`}
-            className="px-8 py-3 rounded-md border border-input bg-background font-semibold hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            {t("register")}
-          </Link>
         </div>
       </div>
     </main>
