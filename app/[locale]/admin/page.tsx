@@ -78,6 +78,16 @@ export default function AdminDashboardPage() {
               <Button variant="secondary" className="w-full">ዋጋ አስተካክል</Button>
             </Link>
           </div>
+
+          <div className="bg-card p-6 rounded-lg border shadow-sm hover:border-primary transition-colors flex flex-col justify-between items-center text-center space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-blue-500">ህትመት ቤቶች (Manage Shops)</h2>
+              <p className="text-muted-foreground text-sm mt-2">አዳዲስ ህትመት ቤቶችን መመዝገብ እና አካውንት መፍጠር።</p>
+            </div>
+            <Link href="/am/admin/shops" className="w-full">
+              <Button variant="outline" className="w-full text-blue-500 border-blue-500 hover:bg-blue-500 hover:text-white">ህትመት ቤቶችን አስተዳድር</Button>
+            </Link>
+          </div>
           
         </div>
 

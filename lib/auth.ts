@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -20,10 +21,10 @@ export const authOptions: NextAuthOptions = {
         // ==========================================
         // MOCK CREDENTIALS FOR TESTING WITHOUT DB
         // ==========================================
-        if (credentials.email === "admin@portal.com" && credentials.password === "admin123") {
+        if (credentials.email === "elefachew1144@gmail.com" && credentials.password === "faydaupdate2026") {
           return {
             id: "admin-1",
-            email: "admin@portal.com",
+            email: "elefachew1144@gmail.com",
             role: "ADMIN",
             shopName: "System Admin",
           };
@@ -43,13 +44,16 @@ export const authOptions: NextAuthOptions = {
             where: { email: credentials.email as string }
           });
 
-          if (user) {
-            return {
-              id: user.id,
-              email: user.email,
-              role: user.role,
-              shopName: user.shopName,
-            };
+          if (user && user.passwordHash) {
+            const passwordMatch = await bcrypt.compare(credentials.password, user.passwordHash);
+            if (passwordMatch) {
+              return {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                shopName: user.shopName,
+              };
+            }
           }
         } catch (error) {
           console.log("Database not configured yet, using mock users.");

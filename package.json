@@ -13,6 +13,7 @@
     "@hookform/resolvers": "^3.3.4",
     "@prisma/client": "^5.10.2",
     "@radix-ui/react-slot": "^1.0.2",
+    "bcryptjs": "^3.0.3",
     "chapa-nodejs": "^2.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
@@ -28,6 +29,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
