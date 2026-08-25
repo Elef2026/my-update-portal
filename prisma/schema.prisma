@@ -1,0 +1,182 @@
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PRINT_SHOP
+}
+
+enum OrderSource {
+  FROM_SHOP // Shop initiated the update for customer
+  FROM_ADMIN // Admin initiated a print job sent to shop
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT // Waiting for customer to pay online or at shop
+  PAID // Paid, ready for Admin to process
+  ADMIN_PROCESSING // Admin is working on it
+  READY_FOR_PRINT_SHOP // Admin finished, sent back to shop for delivery
+  DELIVERED_TO_CUSTOMER // Customer received it, order closed
+  REJECTED // Rejected by admin, or deadline passed
+}
+
+enum OrderType {
+  UPDATE_ONLY
+  FULL_SERVICE // Update + Print
+}
+
+enum PaymentMethod {
+  CHAPA
+  CASH_TO_SHOP // Paid directly to the print shop in cash or bank transfer
+}
+
+enum PaymentStatus {
+  PENDING
+  WAITING_ADMIN_APPROVAL // When paid via Cash/Bank to shop
+  PAID
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+enum UpdateType {
+  NAME_CHANGE
+  NATIONALITY
+  GENDER
+  DOB
+  ADDRESS
+  PHONE
+  EMAIL
+  PO_BOX
+  PHOTO
+  FIN_FAN
+  FAIDA_PRINT_ONLY
+  COURT_ORDER
+}
+
+model User {
+  id            String   @id @default(uuid())
+  shopName      String?
+  email         String   @unique
+  passwordHash  String?
+  role          Role     @default(PRINT_SHOP)
+  walletBalance Decimal  @default(0.00) @db.Decimal(10, 2)
+  phone         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ordersAsShop   Order[]            @relation("ShopOrders")
+  ordersAssigned Order[]            @relation("AssignedAdminOrders")
+  settlements    WeeklySettlement[]
+}
+
+// Global Pricing Configuration (Managed by Admin)
+model ServiceConfig {
+  id        String  @id @default(uuid())
+  serverFee Decimal @default(10.00) @db.Decimal(10, 2)
+  smsFee    Decimal @default(10.00) @db.Decimal(10, 2)
+
+  // For update only
+  updateOnlyPrice    Decimal @default(100.00) @db.Decimal(10, 2)
+  updateOnlyAdminCut Decimal @default(50.00) @db.Decimal(10, 2)
+
+  // For update + print
+  fullServicePrice    Decimal @default(350.00) @db.Decimal(10, 2)
+  fullServiceAdminCut Decimal @default(150.00) @db.Decimal(10, 2)
+
+  isUnifiedPricing Boolean @default(false) // If true, all updates cost unifiedPrice
+  unifiedPrice     Decimal @default(300.00) @db.Decimal(10, 2)
+  unifiedAdminCut  Decimal @default(100.00) @db.Decimal(10, 2)
+
+  services ServicePricing[]
+}
+
+model ServicePricing {
+  id              String     @id @default(uuid())
+  serviceType     UpdateType @unique
+  price           Decimal    @db.Decimal(10, 2) // Price charged to customer
+  adminCommission Decimal    @db.Decimal(10, 2) // Admin cut
+  copyExpense     Decimal    @default(0.00) @db.Decimal(10, 2) // E.g., for Court Orders
+  isActive        Boolean    @default(true) // Admin kill-switch
+
+  configId String
+  config   ServiceConfig @relation(fields: [configId], references: [id])
+}
+
+model Order {
+  id             String      @id @default(uuid())
+  source         OrderSource @default(FROM_SHOP)
+  shopId         String? // The shop that created it (if FROM_SHOP)
+  assignedShopId String? // The shop assigned by Admin (if FROM_ADMIN)
+  adminInitiated Boolean     @default(false)
+
+  customerName  String
+  customerPhone String
+
+  selectedServices UpdateType[] // Array of selected services (e.g., [NAME_CHANGE, DOB])
+
+  // Dynamic JSON for before/after data
+  oldData Json?
+  newData Json?
+
+  status        OrderStatus   @default(PENDING_PAYMENT)
+  orderType     OrderType     @default(FULL_SERVICE)
+  paymentMethod PaymentMethod @default(CHAPA)
+  paymentStatus PaymentStatus @default(PENDING)
+  deadline      DateTime?
+
+  // Financial Tracking
+  serverFee       Decimal @default(0.00) @db.Decimal(10, 2)
+  smsFee          Decimal @default(0.00) @db.Decimal(10, 2)
+  totalPaid       Decimal @default(0.00) @db.Decimal(10, 2)
+  adminCommission Decimal @default(0.00) @db.Decimal(10, 2)
+  shopEarnings    Decimal @default(0.00) @db.Decimal(10, 2)
+
+  refundReceiptUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop         User?       @relation("ShopOrders", fields: [shopId], references: [id])
+  assignedShop User?       @relation("AssignedAdminOrders", fields: [assignedShopId], references: [id])
+  files        OrderFile[]
+}
+
+model OrderFile {
+  id       String @id @default(uuid())
+  orderId  String
+  fileUrl  String // S3 or local path
+  fileType String // e.g., 'ID_CARD', 'BIRTH_CERTIFICATE'
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model WeeklySettlement {
+  id            String           @id @default(uuid())
+  shopId        String
+  weekStartDate DateTime
+  weekEndDate   DateTime
+  totalEarned   Decimal          @db.Decimal(10, 2) // Total shop earnings
+  totalOwed     Decimal          @db.Decimal(10, 2) // Cash the shop collected that belongs to admin
+  netPayout     Decimal          @db.Decimal(10, 2) // Positive means Admin pays Shop, Negative means Shop pays Admin
+  status        SettlementStatus @default(PENDING)
+  receiptUrl    String? // Admin uploaded receipt
+  shopVerified  Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  shop User @relation(fields: [shopId], references: [id])
+}
+
+enum SettlementStatus {
+  PENDING
+  PAID_BY_ADMIN
+  COMPLETED
+}

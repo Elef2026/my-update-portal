@@ -1,0 +1,20 @@
+{
+  "Index": {
+    "title": "Document Update & Printing Portal",
+    "description": "Fast and secure document updates in Ethiopia",
+    "login": "Login",
+    "register": "Register Shop"
+  },
+  "Auth": {
+    "email": "Email Address",
+    "password": "Password",
+    "loginButton": "Sign In"
+  },
+  "Form": {
+    "oldData": "Old/Incorrect Data",
+    "newData": "New/Correct Data",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "submit": "Submit Update Request"
+  }
+}

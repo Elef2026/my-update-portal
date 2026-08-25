@@ -1,0 +1,81 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Archive } from "lucide-react";
+
+export default function HistoryPage() {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/orders?status=DELIVERED_TO_CUSTOMER");
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch orders", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-8 text-center text-muted-foreground">እየጫነ ነው (Loading)...</div>;
+  }
+
+  if (orders.length === 0) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-2xl font-bold mb-2">ምንም መረጃ የለም</h2>
+        <p className="text-muted-foreground">የተጠናቀቁ ስራዎች (Old Completed) እዚህ ጋር ይገኛሉ።</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-6 bg-card p-6 rounded-lg border shadow-sm">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-700 flex items-center gap-2">
+            <Archive className="h-6 w-6" /> 
+            የተጠናቀቁ (Old Completed History)
+          </h1>
+          <p className="text-muted-foreground mt-1">ሙሉ በሙሉ አልቀው፣ ክፍያ ተፈፅሞ የተዘጉ ፋይሎች።</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {orders.map((order) => (
+          <Card key={order.id} className="border-l-4 border-l-slate-400 shadow-sm opacity-90 hover:opacity-100 transition-opacity">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex justify-between items-start text-lg">
+                <span>{order.customerName}</span>
+                <span className="text-xs font-normal bg-secondary text-secondary-foreground px-2 py-1 rounded">
+                  {order.orderType === "UPDATE_ONLY" ? "አብዴት ብቻ" : "አብዴት እና ፕሪንት"}
+                </span>
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">{order.customerPhone}</p>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-muted p-3 rounded text-sm space-y-1">
+                <p><strong>የተመረጡ አገልግሎቶች:</strong> {order.selectedServices?.join(", ")}</p>
+                <p><strong>ክፍያ:</strong> {order.paymentMethod === "CHAPA" ? "በቻፓ" : "ጥሬ ገንዘብ"} ({order.totalPaid} ETB)</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  የተጠናቀቀው: {new Date(order.updatedAt).toLocaleDateString()}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
