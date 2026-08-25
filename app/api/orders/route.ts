@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { PrismaClient, OrderStatus, OrderSource } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { sendSmsNotification, SmsTemplates } from "@/lib/sms";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 
 // POST: Create a new order (From Shop OR From Admin)
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
 // GET: Fetch orders (Admin sees all, Shop sees their own created or assigned)
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -110,7 +111,7 @@ export async function GET(request: Request) {
 // PATCH: Update order status & 4-Stage SMS Lifecycle
 export async function PATCH(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

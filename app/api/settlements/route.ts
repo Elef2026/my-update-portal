@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { PrismaClient, OrderStatus } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 
 // POST: Trigger weekly settlement manually (Admin only)
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session || !session.user || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
 // GET: Fetch settlements
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { sendSmsNotification } from "@/lib/sms";
 import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
     // Protect this route: only ADMINs can manually trigger custom SMS if needed
     if (!session || session.user?.role !== "ADMIN") {

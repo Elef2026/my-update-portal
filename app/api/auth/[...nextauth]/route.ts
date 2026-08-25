@@ -2,9 +2,11 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaClient } from "@prisma/client";
 
+import { AuthOptions } from "next-auth";
+
 const prisma = new PrismaClient();
 
-const handler = NextAuth({
+export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -86,4 +88,5 @@ const handler = NextAuth({
   secret: process.env.NEXTAUTH_SECRET || "fallback-secret-key-for-dev",
 });
 
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
