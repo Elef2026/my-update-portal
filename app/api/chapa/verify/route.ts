@@ -57,13 +57,13 @@ export async function GET(request: Request) {
         }
 
         return NextResponse.redirect(
-          new URL(`/am/shop/in-progress?payment=success&orderId=${orderId}`, request.url)
+          new URL(`/am/shop/new-order?payment=success&orderId=${orderId}`, request.url)
         );
       }
     }
 
     return NextResponse.redirect(
-      new URL("/am/shop/in-progress?payment=failed", request.url)
+      new URL("/am/shop/new-order?payment=failed", request.url)
     );
   } catch (error) {
     console.error("Chapa Verification Error:", error);

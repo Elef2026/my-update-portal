@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Paperclip, CheckCircle, Upload, FileText, AlertCircle, Sparkles, Printer, RefreshCw, Check, Banknote, CreditCard, Calendar, User, Phone } from "lucide-react";
+import { Paperclip, CheckCircle, CheckCircle2, Upload, FileText, AlertCircle, Sparkles, Printer, RefreshCw, Check, Banknote, CreditCard, Calendar, User, Phone, ExternalLink, PlusCircle, X } from "lucide-react";
 
 interface ServiceItem {
   id: string;
@@ -27,6 +28,14 @@ const DEFAULT_SERVICES: ServiceItem[] = [
 ];
 
 export default function SplitUpdateForm() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const paymentStatus = searchParams?.get("payment");
+  const successOrderId = searchParams?.get("orderId");
+
+  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(paymentStatus === "success");
+  const [lastOrderId, setLastOrderId] = useState<string>(successOrderId || "");
+
   const [servicesList, setServicesList] = useState<ServiceItem[]>(DEFAULT_SERVICES);
   const [fullServicePrice, setFullServicePrice] = useState<number>(350);
   const [isFourthFreeDiscount, setIsFourthFreeDiscount] = useState<boolean>(true);
@@ -59,6 +68,29 @@ export default function SplitUpdateForm() {
   const [fileList, setFileList] = useState<{ fileUrl: string; fileType: string; fileName?: string }[]>([]);
   const [manualAttachmentUrl, setManualAttachmentUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset form completely for the next customer
+  const resetFormForNextCustomer = () => {
+    setCustomerName("");
+    setCustomerPhone("");
+    setSelectedServices([]);
+    setOldNameAmharic("");
+    setOldNameEnglish("");
+    setNewNameAmharic("");
+    setNewNameEnglish("");
+    setOldPhone("");
+    setNewPhone("");
+    setOldDob("");
+    setNewDob("");
+    setOldGeneral("");
+    setNewGeneral("");
+    setFileList([]);
+    setManualAttachmentUrl("");
+    setShowSuccessModal(false);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
 
   // Fetch live pricing from database
   useEffect(() => {
@@ -242,8 +274,9 @@ export default function SplitUpdateForm() {
           }
         }
 
-        alert("ጥያቄው በስኬት ተልኳል! ወደ አድሚኑ ደርሷል። (Order submitted successfully to Admin)");
-        window.location.href = "/am/shop/in-progress";
+        // For Cash Orders: Show success modal and allow opening receipt in new tab
+        setLastOrderId(orderData.id);
+        setShowSuccessModal(true);
       } else {
         const errData = await res.json();
         alert("ስህተት ተፈጥሯል: " + (errData.error || ""));
@@ -256,15 +289,82 @@ export default function SplitUpdateForm() {
     }
   };
 
+  const activeOrderId = lastOrderId || successOrderId;
+
   return (
-    <div className="bg-card p-6 sm:p-8 rounded-2xl shadow-sm border mt-6">
-      <form onSubmit={handleSubmit} className="space-y-8">
-        
-        <div>
-          <h2 className="text-lg sm:text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">1</span>
-            የደንበኛ መረጃ (Customer Details)
-          </h2>
+    <div className="space-y-6">
+      
+      {/* CELEBRATORY PAYMENT / SUBMISSION SUCCESS MODAL & RECEIPT OPENER */}
+      {showSuccessModal && (
+        <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-6 sm:p-8 rounded-3xl shadow-2xl border-2 border-emerald-400/40 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="absolute top-0 right-0 p-4">
+            <button 
+              onClick={() => setShowSuccessModal(false)}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <div className="p-3.5 bg-white/20 backdrop-blur-md rounded-2xl shrink-0">
+                <CheckCircle2 className="w-8 h-8 text-white" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-black uppercase tracking-wider">
+                    ክፍያው ተረጋግጧል ✅
+                  </span>
+                  {activeOrderId && (
+                    <span className="text-white/90 text-xs font-mono">ORDER #{activeOrderId.substring(0, 8).toUpperCase()}</span>
+                  )}
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black">
+                  ስራው በስኬት ተልኳል! ወደ አድሚኑ ደርሷል
+                </h2>
+                <p className="text-xs sm:text-sm text-emerald-100 max-w-xl">
+                  ክፍያው ተረጋግጦ ትዕዛዙ በቀጥታ ለአድሚኑ ደርሷል። ከታች ያለውን ቁልፍ በመጫን ደረሰኙን በአዲስ ታብ መክፈትና ማተም ይችላሉ!
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              {activeOrderId && (
+                <Button 
+                  type="button"
+                  onClick={() => window.open(`/am/receipt/${activeOrderId}`, "_blank")}
+                  className="bg-white text-emerald-800 hover:bg-white/90 font-black h-12 px-6 rounded-2xl shadow-lg flex items-center gap-2 text-sm transition-all hover:scale-105"
+                >
+                  <Printer className="w-4 h-4 text-emerald-600" />
+                  <span>ደረሰኝ በአዲስ ታብ ክፈት (Open Receipt)</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                </Button>
+              )}
+
+              <Button 
+                type="button"
+                variant="outline"
+                onClick={resetFormForNextCustomer}
+                className="bg-emerald-800/60 border-white/30 text-white hover:bg-emerald-800/90 font-bold h-12 px-5 rounded-2xl flex items-center gap-2 text-xs transition-all"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>ለቀጣይ ደንበኛ አዲስ ስራ ሙላ (Next Customer)</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Order Submission Form */}
+      <div className="bg-card p-6 sm:p-8 rounded-3xl shadow-sm border">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          <div>
+            <h2 className="text-lg sm:text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">1</span>
+              የደንበኛ መረጃ (Customer Details)
+            </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold mb-1.5 block text-muted-foreground">የደንበኛ ሙሉ ስም *</label>
@@ -594,6 +694,7 @@ export default function SplitUpdateForm() {
         </div>
 
       </form>
+    </div>
     </div>
   );
 }
