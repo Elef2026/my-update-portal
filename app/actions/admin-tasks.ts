@@ -7,7 +7,14 @@ export async function getPendingTasks() {
   try {
     const tasks = await prisma.order.findMany({
       where: {
-        status: { in: ["PAID", "PENDING_PAYMENT"] }
+        OR: [
+          // 1. Chapa orders that are verified and PAID
+          { paymentMethod: "CHAPA", paymentStatus: "PAID", status: { in: ["PAID", "ADMIN_PROCESSING"] } },
+          // 2. Cash orders submitted directly by print shop
+          { paymentMethod: "CASH_TO_SHOP", status: { in: ["PAID", "ADMIN_PROCESSING"] } },
+          // 3. Admin initiated orders
+          { adminInitiated: true, status: { in: ["PAID", "ADMIN_PROCESSING"] } },
+        ]
       },
       include: { 
         shop: true, 

@@ -185,6 +185,12 @@ export async function GET(request: Request) {
           { assignedShopId: actualShopId }
         ]
       };
+    } else if (session.user.role === "ADMIN") {
+      // Exclude unpaid Chapa orders from Admin active work queue
+      whereClause.NOT = {
+        paymentMethod: "CHAPA",
+        paymentStatus: "PENDING",
+      };
     }
 
     if (statusFilter === ("COMPLETED" as any)) {
