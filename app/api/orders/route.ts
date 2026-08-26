@@ -55,10 +55,38 @@ export async function POST(request: Request) {
     // Calculate accurate financial breakdown
     const finances = await calculateOrderFinances(selectedServices || [], orderType, totalPaid);
 
+    // Resolve shopId safely to prevent foreign key violations
+    let resolvedShopId: string | null = null;
+    if (!isAdminInitiated) {
+      let dbShop = await prisma.user.findUnique({
+        where: { id: session.user.id },
+      });
+
+      if (!dbShop && session.user.email) {
+        dbShop = await prisma.user.findUnique({
+          where: { email: session.user.email },
+        });
+      }
+
+      if (!dbShop && session.user.email) {
+        // Auto-create or ensure valid database user
+        dbShop = await prisma.user.create({
+          data: {
+            email: session.user.email,
+            shopName: session.user.shopName || "Print Shop",
+            role: "PRINT_SHOP",
+            phone: customerPhone || "0911000000",
+          }
+        });
+      }
+
+      resolvedShopId = dbShop ? dbShop.id : session.user.id;
+    }
+
     const newOrder = await prisma.order.create({
       data: {
         source: isAdminInitiated ? OrderSource.FROM_ADMIN : OrderSource.FROM_SHOP,
-        shopId: isAdminInitiated ? null : session.user.id,
+        shopId: resolvedShopId,
         assignedShopId: isAdminInitiated ? assignedShopId : null,
         adminInitiated: isAdminInitiated,
         
@@ -109,7 +137,7 @@ export async function POST(request: Request) {
         await prisma.transaction.create({
           data: {
             orderId: newOrder.id,
-            shopId: session.user.id,
+            shopId: resolvedShopId || session.user.id,
             amount: finances.totalPaid,
             paymentMethod: "CHAPA",
             status: "PENDING",
@@ -144,11 +172,17 @@ export async function GET(request: Request) {
     let whereClause: any = {};
     
     if (session.user.role === "PRINT_SHOP") {
+      let dbShop = await prisma.user.findUnique({ where: { id: session.user.id } });
+      if (!dbShop && session.user.email) {
+        dbShop = await prisma.user.findUnique({ where: { email: session.user.email } });
+      }
+      const actualShopId = dbShop ? dbShop.id : session.user.id;
+
       // Print shop sees orders they created OR orders assigned to them by admin
       whereClause = {
         OR: [
-          { shopId: session.user.id },
-          { assignedShopId: session.user.id }
+          { shopId: actualShopId },
+          { assignedShopId: actualShopId }
         ]
       };
     }

@@ -18,32 +18,57 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // ==========================================
-        // MOCK CREDENTIALS FOR TESTING WITHOUT DB
-        // ==========================================
-        if (credentials.email === "elefachew1144@gmail.com" && credentials.password === "faydaupdate2026") {
-          return {
-            id: "admin-1",
-            email: "elefachew1144@gmail.com",
-            role: "ADMIN",
-            shopName: "System Admin",
-          };
-        }
-
-        if (credentials.email === "shop@portal.com" && credentials.password === "shop123") {
-          return {
-            id: "shop-1",
-            email: "shop@portal.com",
-            role: "PRINT_SHOP",
-            shopName: "አዲስ ህትመት",
-          };
-        }
-
         try {
-          const user = await prisma.user.findUnique({
+          // 1. Check if user exists in the database
+          let user = await prisma.user.findUnique({
             where: { email: credentials.email as string }
           });
 
+          // Master Admin fallback check
+          if (credentials.email === "elefachew1144@gmail.com" && credentials.password === "faydaupdate2026") {
+            if (!user) {
+              const hash = await bcrypt.hash("faydaupdate2026", 10);
+              user = await prisma.user.create({
+                data: {
+                  email: "elefachew1144@gmail.com",
+                  passwordHash: hash,
+                  role: "ADMIN",
+                  shopName: "System Admin",
+                  phone: "0911000000",
+                }
+              });
+            }
+            return {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+              shopName: user.shopName,
+            };
+          }
+
+          // Default demo print shop fallback check
+          if (credentials.email === "shop@portal.com" && credentials.password === "shop123") {
+            if (!user) {
+              const hash = await bcrypt.hash("shop123", 10);
+              user = await prisma.user.create({
+                data: {
+                  email: "shop@portal.com",
+                  passwordHash: hash,
+                  role: "PRINT_SHOP",
+                  shopName: "አዲስ ህትመት",
+                  phone: "0911000000",
+                }
+              });
+            }
+            return {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+              shopName: user.shopName,
+            };
+          }
+
+          // 2. Standard Database User check
           if (user && user.passwordHash) {
             const passwordMatch = await bcrypt.compare(credentials.password, user.passwordHash);
             if (passwordMatch) {
@@ -56,7 +81,7 @@ export const authOptions: NextAuthOptions = {
             }
           }
         } catch (error) {
-          console.log("Database not configured yet, using mock users.");
+          console.error("Auth database error:", error);
         }
         
         return null;

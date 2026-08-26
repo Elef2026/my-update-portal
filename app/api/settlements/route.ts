@@ -111,7 +111,12 @@ export async function GET(request: Request) {
 
     let whereClause: any = {};
     if (session.user.role === "PRINT_SHOP") {
-      whereClause = { shopId: session.user.id };
+      let dbShop = await prisma.user.findUnique({ where: { id: session.user.id } });
+      if (!dbShop && session.user.email) {
+        dbShop = await prisma.user.findUnique({ where: { email: session.user.email } });
+      }
+      const actualShopId = dbShop ? dbShop.id : session.user.id;
+      whereClause = { shopId: actualShopId };
     }
 
     const settlements = await prisma.weeklySettlement.findMany({
