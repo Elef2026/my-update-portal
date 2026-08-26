@@ -55,14 +55,28 @@ export default function SplitUpdateForm() {
     );
   };
 
-  const totalPrice = useMemo(() => {
-    if (selectedServices.length === 0) return 0;
-    if (IS_UNIFIED_PRICING) return UNIFIED_PRICE;
-    
-    return selectedServices.reduce((total, sId) => {
-      const srv = AVAILABLE_SERVICES.find(s => s.id === sId);
-      return total + (srv?.price || 0);
-    }, 0);
+  const { totalPrice, freeCount } = useMemo(() => {
+    if (selectedServices.length === 0) return { totalPrice: 0, freeCount: 0 };
+
+    const selectedList = selectedServices.map((id) => {
+      const srv = AVAILABLE_SERVICES.find((s) => s.id === id);
+      return { id, price: srv?.price || 150 };
+    });
+
+    // Sort descending by price so top 3 highest price items are paid, 4th+ are FREE!
+    selectedList.sort((a, b) => b.price - a.price);
+
+    let sum = 0;
+    let free = 0;
+    selectedList.forEach((item, idx) => {
+      if (idx < 3) {
+        sum += item.price;
+      } else {
+        free += 1;
+      }
+    });
+
+    return { totalPrice: sum, freeCount: free };
   }, [selectedServices]);
 
   // Convert selected files to Data URLs for instant database upload
@@ -350,6 +364,11 @@ export default function SplitUpdateForm() {
           <div>
             <p className="text-sm font-medium text-muted-foreground">ጠቅላላ ክፍያ (Total Price)</p>
             <p className="text-3xl font-bold text-primary">{totalPrice} ETB</p>
+            {freeCount > 0 && (
+              <span className="inline-block mt-1 px-2.5 py-1 bg-emerald-500/20 text-emerald-600 rounded-md text-xs font-bold border border-emerald-500/30">
+                🎉 ከ 3 በላይ የተመረጡ {freeCount} አገልግሎቶች በነፃ (100% Free Discount)!
+              </span>
+            )}
             {IS_UNIFIED_PRICING && <p className="text-xs text-primary font-bold">(አንድ ወጥ ዋጋ/Unified Price Active)</p>}
           </div>
           <Button type="submit" disabled={isSubmitting || selectedServices.length === 0} size="lg" className="mt-4 md:mt-0 px-8 h-12 text-lg">
