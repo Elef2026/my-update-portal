@@ -59,55 +59,56 @@ export async function rejectTaskWithReason(orderId: string, reason: string) {
 // 3. አድሚኑ እሁድ ሂሳብ አስልቶ ደረሰኝ ሲልክ (Sunday Settlement Dispatch)
 export async function generateSundaySettlement(
   shopId: string,
-  weekStartDate: Date,
-  weekEndDate: Date,
-  receiptUrl: string
+  weekStartDate?: Date,
+  weekEndDate?: Date,
+  receiptUrl?: string
 ) {
   try {
-    // በሳምንቱ ውስጥ ፕሪንት ተደርገው ክፍያ የሚጠብቁትን ስራዎች ብቻ ማምጣት
+    const startDate = weekStartDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const endDate = weekEndDate || new Date();
+
+    // በሳምንቱ ውስጥ ተጠናቀው ክፍያ የሚጠብቁትን ስራዎች በሙሉ ማምጣት
     const eligibleOrders = await prisma.order.findMany({
       where: {
-        shopId,
+        OR: [{ shopId }, { assignedShopId: shopId }],
         status: "PRINTED_AWAITING_SETTLEMENT",
-        printedAt: { gte: weekStartDate, lte: weekEndDate },
+        settlementId: null,
       },
     });
 
     if (eligibleOrders.length === 0) {
-      return { success: false, error: "ለዚህ ሳምንት የሚወራረድ ምንም ስራ አልተገኘም" };
+      return { success: false, error: "ለዚህ ማተሚያ ቤት የሚወራረድ ምንም ያልተጠናቀቀ ስራ አልተገኘም" };
     }
 
     let totalShopEarnings = 0;
     let totalCashCollected = 0;
     let totalChapaEarnings = 0;
-    let totalDeductions = 0;
 
     for (const o of eligibleOrders) {
-      const shopEarning = Number(o.shopEarnings);
-      const adminCut = Number(o.adminCommission);
-      const fees = Number(o.smsFee) + Number(o.serverFee);
+      const shopEarning = Number(o.shopEarnings || 0);
+      const adminCut = Number(o.adminCommission || 0);
+      const fees = Number(o.smsFee || 10) + Number(o.serverFee || 10);
 
       totalShopEarnings += shopEarning;
-      totalDeductions += fees;
 
-      if (o.paymentMethod === "CHAPA") {
-        totalChapaEarnings += shopEarning;
-      } else {
+      if (o.paymentMethod === "CASH_TO_SHOP") {
         totalCashCollected += adminCut + fees;
+      } else {
+        totalChapaEarnings += shopEarning;
       }
     }
 
-    const netPayout = totalChapaEarnings - totalCashCollected - totalDeductions;
+    const netPayout = Number((totalChapaEarnings - totalCashCollected).toFixed(2));
 
     const settlement = await prisma.weeklySettlement.create({
       data: {
         shopId,
-        weekStartDate,
-        weekEndDate,
-        totalEarned: totalShopEarnings,
-        totalOwed: totalCashCollected,
+        weekStartDate: startDate,
+        weekEndDate: endDate,
+        totalEarned: Number(totalShopEarnings.toFixed(2)),
+        totalOwed: Number(totalCashCollected.toFixed(2)),
         netPayout,
-        receiptUrl,
+        receiptUrl: receiptUrl || null,
         status: "PENDING_SHOP_APPROVAL",
         orders: {
           connect: eligibleOrders.map((o) => ({ id: o.id })),
@@ -117,6 +118,8 @@ export async function generateSundaySettlement(
 
     revalidatePath("/am/admin/settlements");
     revalidatePath("/am/shop/settlements");
+    revalidatePath("/am/admin/completed");
+    revalidatePath("/am/shop/completed");
     return { success: true, settlementId: settlement.id };
   } catch (error) {
     console.error("Error generating settlement:", error);

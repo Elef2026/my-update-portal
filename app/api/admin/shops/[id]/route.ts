@@ -47,11 +47,63 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    await prisma.user.delete({
-      where: { id: params.id },
+    const shopId = params.id;
+
+    // Execute cascade cleanup inside a transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Find all order IDs related to this shop
+      const shopOrders = await tx.order.findMany({
+        where: {
+          OR: [{ shopId }, { assignedShopId: shopId }]
+        },
+        select: { id: true }
+      });
+      const orderIds = shopOrders.map((o) => o.id);
+
+      if (orderIds.length > 0) {
+        // Delete order files
+        await tx.orderFile.deleteMany({
+          where: { orderId: { in: orderIds } }
+        });
+
+        // Delete transactions
+        await tx.transaction.deleteMany({
+          where: {
+            OR: [
+              { orderId: { in: orderIds } },
+              { shopId }
+            ]
+          }
+        });
+
+        // Delete refund requests
+        await tx.refundRequest.deleteMany({
+          where: {
+            OR: [
+              { orderId: { in: orderIds } },
+              { shopId }
+            ]
+          }
+        });
+
+        // Delete orders
+        await tx.order.deleteMany({
+          where: { id: { in: orderIds } }
+        });
+      }
+
+      // Delete weekly settlements
+      await tx.weeklySettlement.deleteMany({
+        where: { shopId }
+      });
+
+      // Delete the shop user
+      await tx.user.delete({
+        where: { id: shopId }
+      });
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: "Shop and all associated records deleted successfully" });
   } catch (error) {
     console.error("Error deleting shop:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

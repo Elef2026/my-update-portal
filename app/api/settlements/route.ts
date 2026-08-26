@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
-// POST: Trigger weekly settlement manually (Admin only)
+// POST: Trigger weekly settlement (Admin only)
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,63 +13,84 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { weekStartDate, weekEndDate } = await request.json();
+    const { weekStartDate, weekEndDate, shopId: targetShopId, receiptUrl } = await request.json();
 
-    if (!weekStartDate || !weekEndDate) {
-      return NextResponse.json({ error: "Missing start or end date" }, { status: 400 });
+    const startDate = weekStartDate ? new Date(weekStartDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const endDate = weekEndDate ? new Date(weekEndDate) : new Date();
+
+    // Query all orders awaiting settlement that don't already have an approved settlement
+    let whereClause: any = {
+      status: "PRINTED_AWAITING_SETTLEMENT",
+      settlementId: null,
+    };
+
+    if (targetShopId) {
+      whereClause.OR = [
+        { shopId: targetShopId },
+        { assignedShopId: targetShopId }
+      ];
     }
 
-    const startDate = new Date(weekStartDate);
-    const endDate = new Date(weekEndDate);
-
-    // Find all completed orders in this date range
     const orders = await prisma.order.findMany({
-      where: {
-        status: "PRINTED_AWAITING_SETTLEMENT",
-        updatedAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
+      where: whereClause,
     });
 
-    // Group by shopId
-    const shopStats: Record<string, { totalEarned: number; totalOwed: number }> = {};
+    if (orders.length === 0) {
+      return NextResponse.json({ error: "ለዚህ ማተሚያ ቤት የሚወራረድ ምንም ያልተጠናቀቀ ስራ አልተገኘም (No orders awaiting settlement)" }, { status: 400 });
+    }
+
+    // Group orders by shop
+    const shopOrdersMap: Record<string, typeof orders> = {};
 
     for (const order of orders) {
-      // The shop that gets paid is either the assignedShop (if admin initiated) or the creating shop
-      const shopId = order.assignedShopId || order.shopId;
-      if (!shopId) continue;
-
-      if (!shopStats[shopId]) {
-        shopStats[shopId] = { totalEarned: 0, totalOwed: 0 };
-      }
-
-      // Add their earnings for this order
-      shopStats[shopId].totalEarned += Number(order.shopEarnings);
-
-      if (order.paymentMethod === "CASH_TO_SHOP") {
-        shopStats[shopId].totalOwed += Number(order.totalPaid);
-      }
+      const sId = order.assignedShopId || order.shopId;
+      if (!sId) continue;
+      if (!shopOrdersMap[sId]) shopOrdersMap[sId] = [];
+      shopOrdersMap[sId].push(order);
     }
 
     const settlementsCreated = [];
 
-    // Create settlement records
-    for (const [shopId, stats] of Object.entries(shopStats)) {
-      const netPayout = stats.totalEarned - stats.totalOwed;
+    for (const [sId, shopOrdersList] of Object.entries(shopOrdersMap)) {
+      let totalShopEarnings = 0;
+      let totalCashDebt = 0;
+      let totalChapaEarnings = 0;
+
+      for (const o of shopOrdersList) {
+        const sEarned = Number(o.shopEarnings || 0);
+        const adminCut = Number(o.adminCommission || 0);
+        const fees = Number(o.serverFee || 10) + Number(o.smsFee || 10);
+
+        totalShopEarnings += sEarned;
+
+        if (o.paymentMethod === "CASH_TO_SHOP") {
+          // Shop collected total customer price in cash. Admin share (adminCut + fees) is debt.
+          totalCashDebt += adminCut + fees;
+        } else {
+          // Admin collected total via Chapa. Shop share (shopEarnings) is payable.
+          totalChapaEarnings += sEarned;
+        }
+      }
+
+      // Net Payout: Positive = Admin pays Shop, Negative = Shop pays Admin
+      const netPayout = Number((totalChapaEarnings - totalCashDebt).toFixed(2));
 
       const settlement = await prisma.weeklySettlement.create({
         data: {
-          shopId,
+          shopId: sId,
           weekStartDate: startDate,
           weekEndDate: endDate,
-          totalEarned: stats.totalEarned,
-          totalOwed: stats.totalOwed,
-          netPayout: netPayout,
+          totalEarned: Number(totalShopEarnings.toFixed(2)),
+          totalOwed: Number(totalCashDebt.toFixed(2)),
+          netPayout,
+          receiptUrl: receiptUrl || null,
           status: "PENDING_SHOP_APPROVAL",
+          orders: {
+            connect: shopOrdersList.map((o) => ({ id: o.id })),
+          },
         },
       });
+
       settlementsCreated.push(settlement);
     }
 
