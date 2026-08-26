@@ -59,8 +59,8 @@ export default function TasksTable({ initialTasks }: { initialTasks: any[] }) {
                 {Array.isArray(task.selectedServices) ? task.selectedServices.join(", ") : task.selectedServices}
               </td>
               <td className="px-6 py-4">
-                <span className="px-2.5 py-1 bg-blue-500/20 text-blue-600 rounded-md text-xs font-semibold">
-                  ተከፍሏል (Paid)
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${task.paymentMethod === 'CHAPA' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'}`}>
+                  {task.paymentMethod === 'CHAPA' ? 'በቻፓ የተከፈለ (Chapa Paid)' : 'ጥሬ ገንዘብ (Cash to Shop)'}
                 </span>
               </td>
               <td className="px-6 py-4">
