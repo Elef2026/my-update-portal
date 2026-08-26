@@ -28,10 +28,16 @@ export async function initiatePayment({
     }
   }
 
-  // Split name into first and last
+  // Split name into first and last, and sanitize to alphanumeric
   const nameParts = (customerName || "Customer").trim().split(/\s+/);
-  const firstName = nameParts[0] || "Customer";
-  const lastName = nameParts.slice(1).join(" ") || "Client";
+  const rawFirst = nameParts[0] || "Customer";
+  const rawLast = nameParts.slice(1).join(" ") || "Client";
+
+  // Sanitize first & last name to letters/numbers for Chapa validation
+  let firstName = rawFirst.replace(/[^a-zA-Z0-9]/g, "");
+  let lastName = rawLast.replace(/[^a-zA-Z0-9]/g, "");
+  if (!firstName) firstName = "Customer";
+  if (!lastName) lastName = "Client";
 
   // Normalize phone to Ethiopian 10-digit format: 09xxxxxxxx or 07xxxxxxxx
   let cleanPhone = (customerPhone || "").replace(/[^0-9]/g, "");
@@ -64,8 +70,8 @@ export async function initiatePayment({
     callback_url: `${appUrl}/api/chapa/verify?tx_ref=${txRef}`,
     return_url: `${appUrl}/am/shop/in-progress?payment=success&orderId=${orderId}`,
     customization: {
-      title: "የፋይዳ ሰነድ ማደስ (Update Portal)",
-      description: `Payment for Order #${orderId.substring(0, 8)} (${formattedAmount} ETB)`,
+      title: "Update Portal",
+      description: `Order ${orderId.substring(0, 8)}`,
     },
   };
 
