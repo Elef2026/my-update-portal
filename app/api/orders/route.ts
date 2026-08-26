@@ -106,7 +106,9 @@ export async function GET(request: Request) {
       };
     }
 
-    if (statusFilter) {
+    if (statusFilter === ("COMPLETED" as any)) {
+      whereClause.status = { in: ["PRINTED_AWAITING_SETTLEMENT", "SETTLED_ARCHIVED"] };
+    } else if (statusFilter) {
       whereClause.status = statusFilter;
     }
 

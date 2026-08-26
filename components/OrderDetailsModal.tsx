@@ -123,6 +123,35 @@ export default function OrderDetailsModal({ order, isOpen, onClose, onOrderUpdat
     }
   };
 
+  const [adminAttachmentUrl, setAdminAttachmentUrl] = useState(order.adminAttachmentUrl || "");
+
+  // Handle Finish / Send to Print
+  const handleFinishTask = async () => {
+    const isUpdateOnly = order.orderType === "UPDATE_ONLY";
+    const promptMsg = isUpdateOnly 
+      ? "የአብዴት ስራውን አጠናቀው ወደ ተጠናቀቁ ማህደር ለማዛወር እርግጠኛ ነዎት?" 
+      : "ስራውን አጠናቀው ለማተሚያ ቤት ፕሪንት ማድረጊያ ለመላክ እርግጠኛ ነዎት?";
+      
+    if (!confirm(promptMsg)) return;
+    setIsSubmitting(true);
+    try {
+      const { finishTask } = await import("@/app/actions/admin-tasks");
+      const res = await finishTask(order.id, adminAttachmentUrl);
+      if (res.success) {
+        alert(res.message || "ስራው በስኬት ተጠናቋል!");
+        onClose();
+        if (onOrderUpdated) onOrderUpdated();
+      } else {
+        alert(res.error || "ስህተት ተፈጥሯል");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("ስራውን ማጠናቀቅ አልተቻለም");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Handle Start Processing
   const handleStartProcessing = async () => {
     if (!confirm("ይህንን ስራ መጀመርዎን እርግጠኛ ነዎት?")) return;
@@ -458,6 +487,22 @@ export default function OrderDetailsModal({ order, isOpen, onClose, onOrderUpdat
               >
                 <CheckCircle className="w-4 h-4" />
                 <span>ስራ ጀምር (Start Working)</span>
+              </Button>
+            )}
+
+            {order.status === "ADMIN_PROCESSING" && (
+              <Button 
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs font-semibold"
+                disabled={isSubmitting}
+                onClick={handleFinishTask}
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>
+                  {order.orderType === "UPDATE_ONLY" 
+                    ? "ስራውን አጠናቅቅ (Complete Update Only)" 
+                    : "ለማተሚያ ቤት ላክ (Send to Print Shop)"}
+                </span>
               </Button>
             )}
 

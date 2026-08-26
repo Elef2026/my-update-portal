@@ -71,25 +71,41 @@ export async function startProcessingTask(orderId: string) {
   }
 }
 
-export async function finishTask(orderId: string, adminAttachmentUrl: string) {
+export async function finishTask(orderId: string, adminAttachmentUrl?: string) {
   try {
-    await prisma.order.update({
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) return { success: false, error: "ትዕዛዙ አልተገኘም" };
+
+    const isUpdateOnly = order.orderType === "UPDATE_ONLY";
+    const targetStatus = isUpdateOnly ? "PRINTED_AWAITING_SETTLEMENT" : "READY_FOR_PRINT_SHOP";
+
+    const updated = await prisma.order.update({
       where: { id: orderId },
       data: { 
-        status: "READY_FOR_PRINT_SHOP",
-        adminAttachmentUrl
+        status: targetStatus,
+        ...(adminAttachmentUrl !== undefined && { adminAttachmentUrl }),
+        ...(isUpdateOnly ? { printedAt: new Date() } : {})
       }
     });
     
     revalidatePath("/am/admin/in-progress");
     revalidatePath("/am/admin/ready-for-print");
-    revalidatePath("/en/admin/in-progress");
-    revalidatePath("/en/admin/ready-for-print");
+    revalidatePath("/am/admin/history");
+    revalidatePath("/am/shop/in-progress");
+    revalidatePath("/am/shop/print-queue");
+    revalidatePath("/am/shop/history");
 
-    return { success: true };
+    return { 
+      success: true, 
+      order: updated, 
+      isUpdateOnly, 
+      message: isUpdateOnly 
+        ? "የአብዴት ስራው ተጠናቋል! ወደ ተጠናቀቁ ማህደር ተዛውሯል።" 
+        : "ስራው ተጠናቆ ወደ ህትመት ቤቱ ፕሪንት ማድረጊያ ተልኳል!" 
+    };
   } catch (error) {
     console.error("Failed to update task", error);
-    return { success: false, error: "Failed to finish task" };
+    return { success: false, error: "ስራውን ማጠናቀቅ አልተቻለም" };
   }
 }
 

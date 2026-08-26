@@ -35,18 +35,25 @@ export default function InProgressPage() {
     }
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const handleFinish = async (order: any) => {
+    const isUpdateOnly = order.orderType === "UPDATE_ONLY";
+    const msg = isUpdateOnly 
+      ? "የአብዴት ስራውን አጠናቀው ወደ ተጠናቀቁ ማህደር ለማዛወር እርግጠኛ ነዎት?" 
+      : "ስራውን አጠናቀው ለማተሚያ ቤት ፕሪንት ማድረጊያ ለመላክ እርግጠኛ ነዎት?";
+    if (!confirm(msg)) return;
+
     try {
-      const res = await fetch("/api/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, newStatus })
-      });
-      if (res.ok) {
-        setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      const { finishTask } = await import("@/app/actions/admin-tasks");
+      const res = await finishTask(order.id);
+      if (res.success) {
+        setOrders((prev) => prev.filter((o) => o.id !== order.id));
+        alert(res.message || "ስራው ተጠናቋል!");
+      } else {
+        alert(res.error || "ስህተት ተፈጥሯል");
       }
     } catch (err) {
-      console.error("Failed to update status", err);
+      console.error("Failed to finish task", err);
+      alert("ስህተት ተፈጥሯል");
     }
   };
 
@@ -108,7 +115,7 @@ export default function InProgressPage() {
             key={order.id} 
             order={order} 
             onOpenDetails={() => setSelectedTask(order)}
-            onSendToPrint={(id) => updateOrderStatus(id, "READY_FOR_PRINT_SHOP")}
+            onFinishTask={() => handleFinish(order)}
             isRejecting={rejectingOrderId === order.id}
             rejectionReason={rejectionReason}
             onSetRejectionReason={setRejectionReason}
@@ -139,7 +146,7 @@ export default function InProgressPage() {
 function OrderCard({ 
   order, 
   onOpenDetails,
-  onSendToPrint, 
+  onFinishTask, 
   isRejecting, 
   rejectionReason, 
   onSetRejectionReason, 
@@ -150,7 +157,7 @@ function OrderCard({
 }: { 
   order: any;
   onOpenDetails: () => void;
-  onSendToPrint: (id: string) => void;
+  onFinishTask: () => void;
   isRejecting: boolean;
   rejectionReason: string;
   onSetRejectionReason: (val: string) => void;
@@ -262,10 +269,13 @@ function OrderCard({
         ) : (
           <div className="flex gap-2 w-full">
             <Button 
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 text-xs"
-              onClick={() => onSendToPrint(order.id)}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 text-xs font-semibold"
+              onClick={onFinishTask}
             >
-              <CheckCircle className="h-4 w-4" /> ወደ ፕሪንት ላክ (Send to Print)
+              <CheckCircle className="h-4 w-4" /> 
+              {order.orderType === "UPDATE_ONLY" 
+                ? "ስራውን አጠናቅቅ (Finish Update)" 
+                : "ወደ ፕሪንት ላክ (Send to Print)"}
             </Button>
             <Button 
               variant="outline" 
