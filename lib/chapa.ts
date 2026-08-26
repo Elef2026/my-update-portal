@@ -73,6 +73,9 @@ export async function initiatePayment({
       title: "Update Portal",
       description: `Order ${orderId.substring(0, 8)}`,
     },
+    meta: {
+      hide_receipt: "true",
+    },
   };
 
   try {
