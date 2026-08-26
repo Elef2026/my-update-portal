@@ -230,6 +230,13 @@ export default function SplitUpdateForm() {
       });
       
       if (res.ok) {
+        const orderData = await res.json();
+        if (orderData.checkoutUrl) {
+          // Redirect immediately to Chapa Hosted Checkout page
+          window.location.href = orderData.checkoutUrl;
+          return;
+        }
+
         alert("ጥያቄው በስኬት ተልኳል! ወደ አድሚኑ ደርሷል። (Order submitted successfully to Admin)");
         window.location.href = "/am/shop/in-progress";
       } else {

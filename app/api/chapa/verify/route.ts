@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { chapa } from "@/lib/chapa";
+import prisma from "@/lib/prisma";
+import { verifyPayment } from "@/lib/chapa";
 import { sendSmsNotification, SmsTemplates } from "@/lib/sms";
-
-const prisma = new PrismaClient();
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -14,39 +12,62 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Verify the transaction with Chapa
-    const verification = await chapa.verify({ tx_ref: txRef });
+    // 1. Verify transaction with Chapa
+    const verification = await verifyPayment(txRef);
 
-    if (verification.status === "success" || verification.data?.status === "success") {
-      
-      // Extract the orderId from the txRef (Assuming format TX-orderId-timestamp)
-      const orderId = txRef.split("-")[1];
+    if (verification.success) {
+      let orderId: string | undefined;
 
-      if (orderId) {
-        // 2. Update Order status in Database
-        const updatedOrder = await prisma.order.update({
-          where: { id: orderId },
-          data: { status: "PAID", paymentStatus: "PAID" },
+      // Extract order prefix from txRef (TX-orderIdPrefix-timestamp)
+      const parts = txRef.split("-");
+      if (parts.length >= 2) {
+        const orderPrefix = parts[1];
+        const foundOrder = await prisma.order.findFirst({
+          where: { id: { startsWith: orderPrefix } },
         });
-
-        // 3. Send SMS Notification (Stage 1)
-        if (updatedOrder.customerPhone) {
-          await sendSmsNotification(
-            updatedOrder.customerPhone,
-            SmsTemplates.paymentReceived(updatedOrder.customerName)
-          );
-        }
+        orderId = foundOrder?.id;
       }
 
-      // 4. Redirect user to success page or history
-      // In a real app, you would redirect to a proper UI page
-      return NextResponse.redirect(new URL("/am/shop/history?payment=success", request.url));
+      if (orderId) {
+        // Update Order status
+        const updatedOrder = await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            status: "PAID",
+            paymentStatus: "PAID",
+          },
+        });
+
+        // Update Transaction to COMPLETED
+        await prisma.transaction.updateMany({
+          where: { orderId },
+          data: { status: "COMPLETED" },
+        });
+
+        // Send SMS Notification
+        if (updatedOrder.customerPhone) {
+          try {
+            await sendSmsNotification(
+              updatedOrder.customerPhone,
+              SmsTemplates.paymentReceived(updatedOrder.customerName)
+            );
+          } catch (smsErr) {
+            console.error("SMS notification error:", smsErr);
+          }
+        }
+
+        return NextResponse.redirect(
+          new URL(`/am/shop/in-progress?payment=success&orderId=${orderId}`, request.url)
+        );
+      }
     }
 
-    return NextResponse.json({ error: "Payment verification failed" }, { status: 400 });
-
+    return NextResponse.redirect(
+      new URL("/am/shop/in-progress?payment=failed", request.url)
+    );
   } catch (error) {
     console.error("Chapa Verification Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { PrismaClient, OrderStatus, OrderSource } from "@prisma/client";
+import { PrismaClient, OrderStatus, OrderSource, PaymentStatus } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { sendSmsNotification, SmsTemplates } from "@/lib/sms";
 import { authOptions } from "@/lib/auth";
 
 import { calculateOrderFinances } from "@/lib/pricing";
+import { initiatePayment } from "@/lib/chapa";
 
 const prisma = new PrismaClient();
 
@@ -33,15 +34,16 @@ export async function POST(request: Request) {
 
     const isAdminInitiated = session.user.role === "ADMIN";
 
-    let initialPaymentStatus = paymentMethod === "CASH_TO_SHOP" ? "WAITING_ADMIN_APPROVAL" : "PENDING";
-    if (isAdminInitiated) {
-      initialPaymentStatus = "PAID";
-    }
+    let initialPaymentStatus: PaymentStatus = paymentMethod === "CASH_TO_SHOP" ? PaymentStatus.WAITING_ADMIN_APPROVAL : PaymentStatus.PENDING;
+    let initialOrderStatus: OrderStatus = OrderStatus.PAID;
 
-    // Set order status so Admin pending tasks page immediately sees incoming orders from shops
-    const initialOrderStatus = isAdminInitiated 
-      ? OrderStatus.ADMIN_PROCESSING 
-      : OrderStatus.PAID;
+    if (isAdminInitiated) {
+      initialPaymentStatus = PaymentStatus.PAID;
+      initialOrderStatus = OrderStatus.ADMIN_PROCESSING;
+    } else if (paymentMethod === "CHAPA") {
+      initialPaymentStatus = PaymentStatus.PENDING;
+      initialOrderStatus = OrderStatus.PENDING_PAYMENT;
+    }
 
     // Process files array if passed
     const filesToCreate = Array.isArray(files) && files.length > 0 
@@ -76,7 +78,7 @@ export async function POST(request: Request) {
 
         orderType,
         paymentMethod,
-        paymentStatus: initialPaymentStatus as any,
+        paymentStatus: initialPaymentStatus,
         status: initialOrderStatus,
         customerAttachmentUrl: primaryAttachment,
         files: filesToCreate.length > 0 ? { create: filesToCreate } : undefined,
@@ -88,7 +90,40 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json(newOrder, { status: 201 });
+    let checkoutUrl: string | null = null;
+
+    // If Chapa payment is requested, initiate real Chapa transaction
+    if (paymentMethod === "CHAPA" && !isAdminInitiated) {
+      const chapaRes = await initiatePayment({
+        orderId: newOrder.id,
+        amount: finances.totalPaid,
+        customerName,
+        customerPhone,
+        customerEmail: session.user.email || undefined,
+      });
+
+      if (chapaRes.success && chapaRes.checkoutUrl) {
+        checkoutUrl = chapaRes.checkoutUrl;
+
+        // Record transaction in DB
+        await prisma.transaction.create({
+          data: {
+            orderId: newOrder.id,
+            shopId: session.user.id,
+            amount: finances.totalPaid,
+            paymentMethod: "CHAPA",
+            status: "PENDING",
+          },
+        });
+      } else {
+        console.warn("Chapa payment initialization notice:", chapaRes.error);
+      }
+    }
+
+    return NextResponse.json({
+      ...newOrder,
+      checkoutUrl,
+    }, { status: 201 });
   } catch (error) {
     console.error("Error creating order:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
