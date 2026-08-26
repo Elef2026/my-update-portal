@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifyPayment } from "@/lib/chapa";
 import { sendSmsNotification, SmsTemplates } from "@/lib/sms";
@@ -55,6 +56,12 @@ export async function GET(request: Request) {
             console.error("SMS notification error:", smsErr);
           }
         }
+
+        // Revalidate admin cache paths so order appears instantly
+        revalidatePath("/am/admin/tasks");
+        revalidatePath("/am/admin/in-progress");
+        revalidatePath("/am/shop/new-order");
+        revalidatePath("/en/admin/tasks");
 
         return NextResponse.redirect(
           new URL(`/am/shop/new-order?payment=success&orderId=${orderId}`, request.url)

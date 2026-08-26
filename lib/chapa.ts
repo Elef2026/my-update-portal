@@ -68,7 +68,7 @@ export async function initiatePayment({
     phone_number: cleanPhone,
     tx_ref: txRef,
     callback_url: `${appUrl}/api/chapa/verify?tx_ref=${txRef}`,
-    return_url: `${appUrl}/am/shop/new-order?payment=success&orderId=${orderId}`,
+    return_url: `${appUrl}/api/chapa/verify?tx_ref=${txRef}`,
     customization: {
       title: "Update Portal",
       description: `Order ${orderId.substring(0, 8)}`,
