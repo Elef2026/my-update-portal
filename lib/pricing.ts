@@ -10,6 +10,7 @@ export interface PricingBreakdown {
   adminExtraExpense: number;
   freeServicesCount: number;
   discountAmount: number;
+  freeThreshold: string;
   breakdownList: {
     serviceType: string;
     price: number;
@@ -45,6 +46,7 @@ export async function calculateOrderFinances(
   let shopExtraExpense = 0;
   let adminExtraExpense = 0;
   let isFourthFreeDiscount = true;
+  let freeThreshold = "AFTER_3";
 
   const pricingsMap = new Map<string, { price: number; adminCut: number; shopCut: number }>();
 
@@ -59,6 +61,7 @@ export async function calculateOrderFinances(
       shopExtraExpense = Number(config.shopExtraExpense || 0);
       adminExtraExpense = Number(config.adminExtraExpense || 0);
       isFourthFreeDiscount = config.isFourthFreeDiscount ?? true;
+      freeThreshold = config.freeThreshold || "AFTER_3";
 
       config.services.forEach((s) => {
         if (s.isActive) {
@@ -74,6 +77,15 @@ export async function calculateOrderFinances(
     console.error("Failed to load pricing config, using defaults:", e);
   }
 
+  // Determine paid threshold count
+  let maxPaidItems = 999;
+  if (isFourthFreeDiscount) {
+    if (freeThreshold === "AFTER_1") maxPaidItems = 1;
+    else if (freeThreshold === "AFTER_2") maxPaidItems = 2;
+    else if (freeThreshold === "AFTER_3") maxPaidItems = 3;
+    else if (freeThreshold === "AFTER_4") maxPaidItems = 4;
+  }
+
   // Build service list with prices
   const items = selectedServices.map((srv) => {
     const p = pricingsMap.get(srv) || DEFAULT_SERVICE_PRICES[srv] || { price: 150, adminCut: 75, shopCut: 55 };
@@ -85,7 +97,7 @@ export async function calculateOrderFinances(
     };
   });
 
-  // Sort by price descending so customer pays for the top 3 most expensive, 4th+ are 100% FREE!
+  // Sort by price descending so customer pays for the top X most expensive, remaining are FREE!
   items.sort((a, b) => b.price - a.price);
 
   let calculatedTotal = 0;
@@ -95,8 +107,7 @@ export async function calculateOrderFinances(
   let freeServicesCount = 0;
 
   const breakdownList = items.map((item, idx) => {
-    // If 4th+ service rule is active and index >= 3, this service is FREE!
-    const isFree = isFourthFreeDiscount && idx >= 3;
+    const isFree = idx >= maxPaidItems;
     if (isFree) {
       freeServicesCount += 1;
       discountAmount += item.price;
@@ -122,7 +133,6 @@ export async function calculateOrderFinances(
   if (orderType === "FULL_SERVICE") {
     shopEarnings = Math.max(0, finalTotalPaid - adminCommission - serverFee - smsFee);
   } else {
-    // UPDATE_ONLY: Admin cut + shop cut
     shopEarnings = Math.max(0, finalTotalPaid - adminCommission - serverFee - smsFee);
   }
 
@@ -136,6 +146,7 @@ export async function calculateOrderFinances(
     adminExtraExpense: Number(adminExtraExpense.toFixed(2)),
     freeServicesCount,
     discountAmount: Number(discountAmount.toFixed(2)),
+    freeThreshold,
     breakdownList,
   };
 }

@@ -17,7 +17,9 @@ import {
   CheckCircle2, 
   PlusCircle, 
   Sliders,
-  Layers
+  Layers,
+  Trash2,
+  AlertCircle
 } from "lucide-react";
 
 const SERVICE_LABELS: Record<string, { amharic: string; english: string }> = {
@@ -41,10 +43,18 @@ export default function PricingConfigForm() {
   const [shopExtraExpense, setShopExtraExpense] = useState(0);
   const [adminExtraExpense, setAdminExtraExpense] = useState(0);
   const [isFourthFreeDiscount, setIsFourthFreeDiscount] = useState(true);
+  const [freeThreshold, setFreeThreshold] = useState("AFTER_3");
 
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // New custom service state (Create)
+  const [newServiceName, setNewServiceName] = useState("");
+  const [newServicePrice, setNewServicePrice] = useState(150);
+  const [newServiceAdminCut, setNewServiceAdminCut] = useState(75);
+  const [newServiceShopCut, setNewServiceShopCut] = useState(55);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   // Live Simulator State
   const [simulatedServices, setSimulatedServices] = useState<string[]>(["NAME_CHANGE", "DOB", "PHOTO", "GENDER"]);
@@ -64,6 +74,7 @@ export default function PricingConfigForm() {
         setShopExtraExpense(Number(data.shopExtraExpense || 0));
         setAdminExtraExpense(Number(data.adminExtraExpense || 0));
         setIsFourthFreeDiscount(data.isFourthFreeDiscount ?? true);
+        setFreeThreshold(data.freeThreshold || "AFTER_3");
         if (Array.isArray(data.services)) {
           setServices(data.services);
         }
@@ -75,7 +86,6 @@ export default function PricingConfigForm() {
     }
   };
 
-  // Helper to adjust numbers (increase/decrease)
   const adjustValue = (
     setter: (val: number | ((prev: number) => number)) => void,
     currentVal: number,
@@ -109,14 +119,73 @@ export default function PricingConfigForm() {
     );
   };
 
+  // CREATE: Add new service
+  const handleAddNewService = () => {
+    if (!newServiceName.trim()) {
+      alert("እባክዎን የአገልግሎቱን ስም ያስገቡ (Please enter service name)");
+      return;
+    }
+
+    const sType = newServiceName.trim().toUpperCase().replace(/\s+/g, "_");
+    
+    // Check if duplicate
+    if (services.some((s) => s.serviceType === sType)) {
+      alert("ይህ አገልግሎት አስቀድሞ አለ (Service already exists)");
+      return;
+    }
+
+    const newObj = {
+      serviceType: sType,
+      titleAmharic: newServiceName.trim(),
+      titleEnglish: newServiceName.trim(),
+      price: newServicePrice,
+      adminCommission: newServiceAdminCut,
+      shopCut: newServiceShopCut,
+      isActive: true,
+    };
+
+    setServices((prev) => [...prev, newObj]);
+    setNewServiceName("");
+    setShowAddForm(false);
+    alert(`አዲስ አገልግሎት "${newServiceName}" ተጨምሯል! ለማረጋገጥ አስቀምጥ የሚለውን ይጫኑ።`);
+  };
+
+  // DELETE: Remove service
+  const handleDeleteService = async (serviceType: string) => {
+    if (!confirm(`እርግጠኛ ነዎት "${serviceType}" የአገልግሎት ተመን ይወገድ?`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/pricing?serviceType=${serviceType}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setServices((prev) => prev.filter((s) => s.serviceType !== serviceType));
+        alert("አገልግሎቱ ተወግዷል (Service deleted)");
+      } else {
+        alert("መሰረዝ አልተካሄደም");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("ስህተት ተፈጥሯል");
+    }
+  };
+
   const toggleSimulatedService = (sType: string) => {
     setSimulatedServices((prev) =>
       prev.includes(sType) ? prev.filter((s) => s !== sType) : [...prev, sType]
     );
   };
 
-  // Calculate live simulation results
+  // Dynamic Free Threshold Evaluator
   const simResults = (() => {
+    let maxPaidItems = 999;
+    if (isFourthFreeDiscount) {
+      if (freeThreshold === "AFTER_1") maxPaidItems = 1;
+      else if (freeThreshold === "AFTER_2") maxPaidItems = 2;
+      else if (freeThreshold === "AFTER_3") maxPaidItems = 3;
+      else if (freeThreshold === "AFTER_4") maxPaidItems = 4;
+    }
+
     const activeItems = simulatedServices.map((sType) => {
       const srv = services.find((s) => s.serviceType === sType);
       return {
@@ -127,19 +196,16 @@ export default function PricingConfigForm() {
       };
     });
 
-    // Sort descending by price
     activeItems.sort((a, b) => b.price - a.price);
 
     let customerTotal = 0;
     let adminCutTotal = 0;
     let shopCutTotal = 0;
     let freeCount = 0;
-    let discountTotal = 0;
 
     activeItems.forEach((item, idx) => {
-      if (isFourthFreeDiscount && idx >= 3) {
+      if (idx >= maxPaidItems) {
         freeCount += 1;
-        discountTotal += item.price;
       } else {
         customerTotal += item.price;
         adminCutTotal += item.adminCut;
@@ -155,7 +221,6 @@ export default function PricingConfigForm() {
       adminCutTotal,
       shopCutTotal,
       freeCount,
-      discountTotal,
       serverFee,
       smsFee,
       items: activeItems,
@@ -171,6 +236,7 @@ export default function PricingConfigForm() {
         shopExtraExpense,
         adminExtraExpense,
         isFourthFreeDiscount,
+        freeThreshold,
         services,
       };
 
@@ -303,7 +369,6 @@ export default function PricingConfigForm() {
             <div className="flex gap-1 text-[11px]">
               <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setShopExtraExpense(0)}>0 (ፅዳት)</Button>
               <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => adjustValue(setShopExtraExpense, shopExtraExpense, 20)}>+20</Button>
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => adjustValue(setShopExtraExpense, shopExtraExpense, 50)}>+50</Button>
             </div>
           </div>
 
@@ -333,45 +398,154 @@ export default function PricingConfigForm() {
             <div className="flex gap-1 text-[11px]">
               <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setAdminExtraExpense(0)}>0 (ፅዳት)</Button>
               <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => adjustValue(setAdminExtraExpense, adminExtraExpense, 25)}>+25</Button>
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => adjustValue(setAdminExtraExpense, adminExtraExpense, 50)}>+50</Button>
             </div>
           </div>
 
         </div>
       </div>
 
-      {/* 2. Multi-Service Free Discount Rule Toggle */}
-      <div className="bg-gradient-to-r from-primary/10 via-emerald-500/10 to-primary/5 p-6 rounded-xl border border-primary/20 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="space-y-1">
-          <h3 className="text-lg font-bold flex items-center gap-2 text-primary">
-            <Gift className="w-5 h-5 text-emerald-600" />
-            የ 4ኛ እና ከዛ በላይ አገልግሎቶች በነፃ ቅናሽ ህግ (4th+ Service Free Rule)
-          </h3>
-          <p className="text-xs text-muted-foreground max-w-2xl">
-            ደንበኞች ከ 3 በላይ አገልግሎት ሲመርጡ፣ 4ኛው እና ከዛ በላይ ያሉ አገልግሎቶች 100% በነፃ (0 ETB) እንዲሆኑ ያደርጋል።
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 bg-background p-4 rounded-xl border shrink-0 shadow-sm">
-          <Switch checked={isFourthFreeDiscount} onCheckedChange={setIsFourthFreeDiscount} />
-          <span className="text-xs font-bold">{isFourthFreeDiscount ? "ህጉ በርቷል (ACTIVE)" : "ህጉ ጠፍቷል (OFF)"}</span>
-        </div>
-      </div>
-
-      {/* 3. Live Pricing Interactive Controls Table */}
-      <div className="bg-card rounded-xl border shadow-sm overflow-hidden space-y-4">
-        <div className="p-6 border-b bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* 2. Dynamic Free Threshold Selector ("ከ 1 በላይ ነፃ ይሁን፣ ከ 2 በላይ ነፃ ይሁን፣ ከ 3 በላይ ነፃ ይሁን...") */}
+      <div className="bg-card p-6 rounded-xl border shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b pb-4">
           <div>
-            <h3 className="text-lg font-bold flex items-center gap-2">
-              <Layers className="w-5 h-5 text-primary" />
-              2. የእያንዳንዱ አገልግሎት ዋጋ መጨመሪያ እና መቀነሻ ሰንጠረዥ (Per-Service Controls)
+            <h3 className="text-lg font-bold flex items-center gap-2 text-primary">
+              <Gift className="w-5 h-5 text-emerald-600" />
+              2. የነፃ አገልግሎቶች መወሰኛ ህግ (Multi-Service Free Threshold Settings)
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
-              በእያንዳንዱ አገልግሎት ላይ <strong>+10, +50, -10, -50</strong> በመጫን ዋጋውን፣ የአድሚን እና የህትመት ቤት ኮሚሽን ማስተካከል ይችላሉ።
+              አንድ ደንበኛ ከአንድ በላይ ማስተካከያዎች ሲመርጥ ከስንት በላይ የሆኑት አገልግሎቶች በነፃ (0 ETB) እንዲሆኑ ይፈልጋሉ?
             </p>
+          </div>
+
+          <div className="flex items-center gap-3 bg-muted p-2 rounded-lg border">
+            <span className="text-xs font-bold">የቅናሽ ህግ ማብሪያ:</span>
+            <Switch checked={isFourthFreeDiscount} onCheckedChange={setIsFourthFreeDiscount} />
           </div>
         </div>
 
+        {isFourthFreeDiscount && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+            
+            <Button
+              variant={freeThreshold === "AFTER_1" ? "default" : "outline"}
+              onClick={() => setFreeThreshold("AFTER_1")}
+              className="flex flex-col items-center p-4 h-auto text-left justify-center gap-1"
+            >
+              <span className="font-bold text-sm">ከ 1 በላይ የሆኑት በነፃ (2nd+ Free)</span>
+              <span className="text-[11px] opacity-80">ደንበኛው ለ 1 አገልግሎት ብቻ ይከፍላል</span>
+            </Button>
+
+            <Button
+              variant={freeThreshold === "AFTER_2" ? "default" : "outline"}
+              onClick={() => setFreeThreshold("AFTER_2")}
+              className="flex flex-col items-center p-4 h-auto text-left justify-center gap-1"
+            >
+              <span className="font-bold text-sm">ከ 2 በላይ የሆኑት በነፃ (3rd+ Free)</span>
+              <span className="text-[11px] opacity-80">ደንበኛው ለ 2 አገልግሎቶች ብቻ ይከፍላል</span>
+            </Button>
+
+            <Button
+              variant={freeThreshold === "AFTER_3" ? "default" : "outline"}
+              onClick={() => setFreeThreshold("AFTER_3")}
+              className="flex flex-col items-center p-4 h-auto text-left justify-center gap-1"
+            >
+              <span className="font-bold text-sm">ከ 3 በላይ የሆኑት በነፃ (4th+ Free)</span>
+              <span className="text-[11px] opacity-80">ደንበኛው ለ 3 አገልግሎቶች ብቻ ይከፍላል</span>
+            </Button>
+
+            <Button
+              variant={freeThreshold === "AFTER_4" ? "default" : "outline"}
+              onClick={() => setFreeThreshold("AFTER_4")}
+              className="flex flex-col items-center p-4 h-auto text-left justify-center gap-1"
+            >
+              <span className="font-bold text-sm">ከ 4 በላይ የሆኑት በነፃ (5th+ Free)</span>
+              <span className="text-[11px] opacity-80">ደንበኛው ለ 4 አገልግሎቶች ብቻ ይከፍላል</span>
+            </Button>
+
+          </div>
+        )}
+      </div>
+
+      {/* 3. CRUD: Services Table & New Service Modal */}
+      <div className="bg-card rounded-xl border shadow-sm overflow-hidden space-y-4">
+        <div className="p-6 border-b bg-muted/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Layers className="w-5 h-5 text-primary" />
+              3. የአገልግሎቶች ዝርዝር እና ዋጋ መቆጣጠሪያ (CRUD Services & Pricing)
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              አዳዲስ አገልግሎቶችን መጨመር (Create)፣ ማስተካከል (Update) ወይም ማስወገድ (Delete) ይችላሉ።
+            </p>
+          </div>
+
+          <Button 
+            onClick={() => setShowAddForm(!showAddForm)} 
+            className="bg-primary text-primary-foreground font-semibold flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>አዲስ አገልግሎት ጨምር (Add New Service)</span>
+          </Button>
+        </div>
+
+        {/* Add New Service Form Dropdown */}
+        {showAddForm && (
+          <div className="p-6 bg-primary/5 border-b space-y-4 animate-in fade-in duration-200">
+            <h4 className="font-bold text-sm text-primary flex items-center gap-2">
+              <PlusCircle className="w-4 h-4" /> አዲስ የአገልግሎት አይነት መፍጠሪያ (Create Custom Service)
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div>
+                <label className="text-xs font-semibold block mb-1">የአገልግሎቱ ስም (Name)</label>
+                <Input 
+                  placeholder="ምሳሌ: የትምህርት ደረጃ..." 
+                  value={newServiceName} 
+                  onChange={(e) => setNewServiceName(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-1">የደንበኛ ዋጋ (Customer Price ETB)</label>
+                <Input 
+                  type="number"
+                  value={newServicePrice} 
+                  onChange={(e) => setNewServicePrice(Number(e.target.value))}
+                  className="h-9 text-xs font-bold text-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-1">የአድሚን ድርሻ (Admin Cut ETB)</label>
+                <Input 
+                  type="number"
+                  value={newServiceAdminCut} 
+                  onChange={(e) => setNewServiceAdminCut(Number(e.target.value))}
+                  className="h-9 text-xs font-bold text-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-1">የህትመት ቤት ድርሻ (Shop Cut ETB)</label>
+                <Input 
+                  type="number"
+                  value={newServiceShopCut} 
+                  onChange={(e) => setNewServiceShopCut(Number(e.target.value))}
+                  className="h-9 text-xs font-bold text-indigo-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)}>ሰርዝ (Cancel)</Button>
+              <Button size="sm" onClick={handleAddNewService} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+                አገልግሎቱን ፍጠር (Create Service)
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Services Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted text-muted-foreground">
@@ -381,12 +555,13 @@ export default function PricingConfigForm() {
                 <th className="px-4 py-3 font-medium text-center">የአድሚን ድርሻ (Admin Cut)</th>
                 <th className="px-4 py-3 font-medium text-center">የህትመት ቤት ድርሻ (Shop Cut)</th>
                 <th className="px-4 py-3 font-medium text-center">ሁኔታ</th>
+                <th className="px-4 py-3 font-medium text-center">እርምጃ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {services.map((service) => {
                 const sType = service.serviceType;
-                const label = SERVICE_LABELS[sType] || { amharic: sType, english: sType };
+                const label = SERVICE_LABELS[sType] || { amharic: service.titleAmharic || sType, english: service.titleEnglish || sType };
 
                 return (
                   <tr key={sType} className={`hover:bg-muted/40 transition-colors ${!service.isActive ? 'opacity-40 bg-muted/20' : ''}`}>
@@ -414,10 +589,6 @@ export default function PricingConfigForm() {
                             <Plus className="w-3.5 h-3.5 text-emerald-600" />
                           </Button>
                         </div>
-                        <div className="flex gap-1">
-                          <button className="text-[10px] bg-muted px-1.5 py-0.5 rounded hover:bg-muted/80 font-semibold" onClick={() => handleServiceFieldAdjust(sType, 'price', 50)}>+50</button>
-                          <button className="text-[10px] bg-muted px-1.5 py-0.5 rounded hover:bg-muted/80 font-semibold text-destructive" onClick={() => handleServiceFieldAdjust(sType, 'price', -50)}>-50</button>
-                        </div>
                       </div>
                     </td>
 
@@ -437,10 +608,6 @@ export default function PricingConfigForm() {
                           <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => handleServiceFieldAdjust(sType, 'adminCommission', 10)}>
                             <Plus className="w-3.5 h-3.5 text-emerald-600" />
                           </Button>
-                        </div>
-                        <div className="flex gap-1">
-                          <button className="text-[10px] bg-muted px-1.5 py-0.5 rounded hover:bg-muted/80 font-semibold" onClick={() => handleServiceFieldAdjust(sType, 'adminCommission', 25)}>+25</button>
-                          <button className="text-[10px] bg-muted px-1.5 py-0.5 rounded hover:bg-muted/80 font-semibold text-destructive" onClick={() => handleServiceFieldAdjust(sType, 'adminCommission', -25)}>-25</button>
                         </div>
                       </div>
                     </td>
@@ -462,10 +629,6 @@ export default function PricingConfigForm() {
                             <Plus className="w-3.5 h-3.5 text-emerald-600" />
                           </Button>
                         </div>
-                        <div className="flex gap-1">
-                          <button className="text-[10px] bg-muted px-1.5 py-0.5 rounded hover:bg-muted/80 font-semibold" onClick={() => handleServiceFieldAdjust(sType, 'shopCut', 20)}>+20</button>
-                          <button className="text-[10px] bg-muted px-1.5 py-0.5 rounded hover:bg-muted/80 font-semibold text-destructive" onClick={() => handleServiceFieldAdjust(sType, 'shopCut', -20)}>-20</button>
-                        </div>
                       </div>
                     </td>
 
@@ -478,6 +641,13 @@ export default function PricingConfigForm() {
                         />
                         <span className="text-[11px] font-bold">{service.isActive ? "ክፍት" : "ዝግ"}</span>
                       </div>
+                    </td>
+
+                    {/* Delete Button */}
+                    <td className="px-4 py-4 text-center">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteService(sType)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </td>
 
                   </tr>
@@ -493,16 +663,15 @@ export default function PricingConfigForm() {
         <div className="border-b pb-3">
           <h3 className="text-lg font-bold flex items-center gap-2 text-primary">
             <Calculator className="w-5 h-5" />
-            3. የዋጋ ናሙና ማስያ እና መፈተሻ (Live Pricing Calculator & Preview)
+            4. የዋጋ ናሙና ማስያ እና መፈተሻ (Live Pricing Calculator & Preview)
           </h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            ከዚህ በታች አገልግሎቶችን በመምረጥ ህጉ እንዴት እንደሚሰላ በቅጽበት መመልከት ይችላሉ።
-          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {Object.entries(SERVICE_LABELS).map(([sType, label]) => {
+          {services.map((srv) => {
+            const sType = srv.serviceType;
             const isSel = simulatedServices.includes(sType);
+            const label = SERVICE_LABELS[sType]?.amharic || srv.titleAmharic || sType;
             return (
               <Button
                 key={sType}
@@ -512,7 +681,7 @@ export default function PricingConfigForm() {
                 onClick={() => toggleSimulatedService(sType)}
               >
                 {isSel && <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
-                {label.amharic}
+                {label}
               </Button>
             );
           })}

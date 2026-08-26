@@ -101,8 +101,9 @@ model ServiceConfig {
   shopExtraExpense  Decimal @default(0.00) @db.Decimal(10, 2)
   adminExtraExpense Decimal @default(0.00) @db.Decimal(10, 2)
 
-  // Multi-service discount (4th+ service free rule)
+  // Multi-service discount threshold: "NO_DISCOUNT", "AFTER_1", "AFTER_2", "AFTER_3", "AFTER_4"
   isFourthFreeDiscount Boolean @default(true)
+  freeThreshold        String  @default("AFTER_3")
 
   // For update only
   updateOnlyPrice    Decimal @default(100.00) @db.Decimal(10, 2)
@@ -122,6 +123,8 @@ model ServiceConfig {
 model ServicePricing {
   id              String     @id @default(uuid())
   serviceType     UpdateType @unique
+  titleAmharic    String?
+  titleEnglish    String?
   price           Decimal    @db.Decimal(10, 2) // Price charged to customer
   adminCommission Decimal    @db.Decimal(10, 2) // Admin cut
   shopCut         Decimal    @default(50.00) @db.Decimal(10, 2) // Shop cut

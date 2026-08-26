@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import prisma from "@/lib/prisma";
-import { CheckCircle2, Clock, Printer, DollarSign, Undo2, Archive, ShoppingBag, Settings, Store } from "lucide-react";
+import { CheckCircle2, Clock, Printer, DollarSign, Undo2, Archive, ShoppingBag, Settings, Store, Sliders } from "lucide-react";
 
 export default async function AdminDashboardPage() {
   // Fetch real-time total commission from DB
@@ -38,7 +38,19 @@ export default async function AdminDashboardPage() {
         {/* Dashboard Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           
-          {/* Completed Tasks (New Dedicated Route) */}
+          {/* Dedicated Pricing & Financial Control Page */}
+          <div className="bg-card p-6 rounded-xl border-2 border-primary/50 shadow-sm hover:border-primary transition-colors flex flex-col justify-between items-center text-center space-y-4">
+            <div className="flex flex-col items-center">
+              <Sliders className="w-10 h-10 text-primary mb-2" />
+              <h2 className="text-lg font-bold text-primary">የገንዘብ እና ታሪፍ መቆጣጠሪያ (Pricing & Rules Control)</h2>
+              <p className="text-muted-foreground text-sm mt-1">የአድሚን/ህትመት ቤት ኮሚሽን፣ የ 10 ETB ክፍያዎች፣ ተጨማሪ ወጪዎች እና የነፃ ቅናሽ ህጎች መቆጣጠሪያ።</p>
+            </div>
+            <Link href="/am/admin/pricing" className="w-full">
+              <Button className="w-full bg-primary hover:bg-primary/90 font-bold">ታሪፍ እና ኮሚሽን አስተካክል (Manage Pricing)</Button>
+            </Link>
+          </div>
+
+          {/* Completed Tasks */}
           <div className="bg-card p-6 rounded-xl border-2 border-emerald-500/40 shadow-sm hover:border-emerald-500 transition-colors flex flex-col justify-between items-center text-center space-y-4">
             <div className="flex flex-col items-center">
               <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2" />
