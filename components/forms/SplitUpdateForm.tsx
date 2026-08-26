@@ -231,9 +231,15 @@ export default function SplitUpdateForm() {
       if (res.ok) {
         const orderData = await res.json();
         
-        if (paymentMethod === "CHAPA" && orderData.checkoutUrl) {
-          window.location.href = orderData.checkoutUrl;
-          return;
+        if (paymentMethod === "CHAPA") {
+          if (orderData.checkoutUrl) {
+            // Instant redirect directly to Chapa Hosted Checkout
+            window.location.href = orderData.checkoutUrl;
+            return;
+          } else {
+            alert("የቻፓ ክፍያ ሊንክ አልተገኘም (Chapa payment URL not returned)");
+            return;
+          }
         }
 
         alert("ጥያቄው በስኬት ተልኳል! ወደ አድሚኑ ደርሷል። (Order submitted successfully to Admin)");

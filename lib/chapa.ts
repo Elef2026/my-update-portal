@@ -17,7 +17,16 @@ export async function initiatePayment({
   customerEmail,
 }: InitiatePaymentParams) {
   const txRef = `TX-${orderId.substring(0, 8)}-${Date.now()}`;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  
+  // Detect live domain automatically
+  let appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl || appUrl.includes("localhost")) {
+    if (process.env.VERCEL_URL) {
+      appUrl = `https://${process.env.VERCEL_URL}`;
+    } else {
+      appUrl = "https://my-update-portal.vercel.app";
+    }
+  }
 
   // Split name into first and last
   const nameParts = (customerName || "Customer").trim().split(/\s+/);

@@ -144,7 +144,11 @@ export async function POST(request: Request) {
           },
         });
       } else {
-        console.warn("Chapa payment initialization notice:", chapaRes.error);
+        console.error("Chapa payment initialization failed:", chapaRes.error);
+        return NextResponse.json({
+          error: `የቻፓ ክፍያ ማገናኘት አልተቻለም (Chapa Error): ${typeof chapaRes.error === 'object' ? JSON.stringify(chapaRes.error) : chapaRes.error}`,
+          orderId: newOrder.id,
+        }, { status: 400 });
       }
     }
 
