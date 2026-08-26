@@ -295,11 +295,28 @@ export default function OrderDetailsModal({ order, isOpen, onClose, onOrderUpdat
             </div>
 
             <div className="bg-card p-4 rounded-lg border space-y-2">
-              <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">የክፍያ ዝርዝር (Payment Details)</h3>
-              <div className="text-xs space-y-1">
-                <p><span className="text-muted-foreground">አይነት:</span> <strong className="font-semibold">{order.orderType === "UPDATE_ONLY" ? "አብዴት ብቻ" : "አብዴት እና ፕሪንት"}</strong></p>
+              <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">የክፍያ እና የገንዘብ ክፍፍል (Financial Breakdown)</h3>
+              <div className="text-xs space-y-1.5">
+                <p><span className="text-muted-foreground">የስራ አይነት:</span> <strong className="font-semibold">{order.orderType === "UPDATE_ONLY" ? "አብዴት ብቻ" : "አብዴት እና ፕሪንት"}</strong></p>
                 <p><span className="text-muted-foreground">የክፍያ መንገድ:</span> <strong className="font-semibold">{order.paymentMethod === "CHAPA" ? "በቻፓ (Online Chapa)" : "ጥሬ ገንዘብ (Cash to Shop)"}</strong></p>
-                <p><span className="text-muted-foreground">የተከፈለው መጠን:</span> <strong className="text-emerald-600 font-bold text-sm">{order.totalPaid || 0} ETB</strong></p>
+                <div className="pt-1.5 border-t space-y-1">
+                  <p className="flex justify-between">
+                    <span className="text-muted-foreground">ጠቅላላ የደንበኛ ክፍያ:</span> 
+                    <strong className="text-emerald-600 font-bold">{Number(order.totalPaid || 0).toFixed(2)} ETB</strong>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="text-muted-foreground">የአድሚን ድርሻ (Admin Cut):</span> 
+                    <strong className="text-blue-600 font-semibold">{Number(order.adminCommission || 0).toFixed(2)} ETB</strong>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="text-muted-foreground">የማተሚያ ቤት ድርሻ (Shop Earnings):</span> 
+                    <strong className="text-indigo-600 font-semibold">{Number(order.shopEarnings || 0).toFixed(2)} ETB</strong>
+                  </p>
+                  <p className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>የሲስተም እና SMS አገልግሎት ክፍያ:</span> 
+                    <span>{(Number(order.serverFee || 10) + Number(order.smsFee || 10)).toFixed(2)} ETB</span>
+                  </p>
+                </div>
               </div>
             </div>
           </div>

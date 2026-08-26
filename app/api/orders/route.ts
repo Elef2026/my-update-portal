@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth/next";
 import { sendSmsNotification, SmsTemplates } from "@/lib/sms";
 import { authOptions } from "@/lib/auth";
 
+import { calculateOrderFinances } from "@/lib/pricing";
+
 const prisma = new PrismaClient();
 
 // POST: Create a new order (From Shop OR From Admin)
@@ -48,6 +50,9 @@ export async function POST(request: Request) {
 
     const primaryAttachment = customerAttachmentUrl || (filesToCreate.length > 0 ? filesToCreate[0].fileUrl : null);
 
+    // Calculate accurate financial breakdown
+    const finances = await calculateOrderFinances(selectedServices || [], orderType, totalPaid);
+
     const newOrder = await prisma.order.create({
       data: {
         source: isAdminInitiated ? OrderSource.FROM_ADMIN : OrderSource.FROM_SHOP,
@@ -61,7 +66,14 @@ export async function POST(request: Request) {
         
         oldData: oldData || {},
         newData: newData || {},
-        totalPaid: totalPaid || 0,
+        
+        // Accurate Financial Tracking
+        totalPaid: finances.totalPaid,
+        adminCommission: finances.adminCommission,
+        shopEarnings: finances.shopEarnings,
+        serverFee: finances.serverFee,
+        smsFee: finances.smsFee,
+
         orderType,
         paymentMethod,
         paymentStatus: initialPaymentStatus as any,

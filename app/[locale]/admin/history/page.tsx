@@ -43,6 +43,10 @@ export default function HistoryPage() {
   const printCompletedCount = orders.filter(o => o.orderType === "FULL_SERVICE" && o.status !== "REJECTED").length;
   const rejectedCount = orders.filter(o => o.status === "REJECTED").length;
   const totalCompletedCount = updateOnlyCount + printCompletedCount;
+  
+  const totalRevenue = orders.filter(o => o.status !== "REJECTED").reduce((sum, o) => sum + Number(o.totalPaid || 0), 0);
+  const totalAdminCut = orders.filter(o => o.status !== "REJECTED").reduce((sum, o) => sum + Number(o.adminCommission || 0), 0);
+  const totalShopCut = orders.filter(o => o.status !== "REJECTED").reduce((sum, o) => sum + Number(o.shopEarnings || 0), 0);
 
   const filteredOrders = orders.filter((o) => {
     if (filter === "UPDATE_ONLY") return o.orderType === "UPDATE_ONLY" && o.status !== "REJECTED";
@@ -63,13 +67,31 @@ export default function HistoryPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <Archive className="h-6 w-6 text-primary" /> 
-            የተጠናቀቁ ስራዎች መቆጣጠሪያ (Completed & Archived Tasks Dashboard)
+            የተጠናቀቁ ስራዎች እና የገንዘብ ሂሳብ መቆጣጠሪያ (Financial & Tasks Dashboard)
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            አብዴት ብቻ አልቀው የተጠናቀቁ እና ማተሚያ ቤት ፕሪንት ተደርገው ያለቁ ስራዎች በሙሉ
+            አብዴት ብቻ አልቀው የተጠናቀቁ እና ማተሚያ ቤት ፕሪንት ተደርገው ያለቁ ስራዎች የገንዘብ ክፍፍል በግልጽ
           </p>
         </div>
         <Button variant="outline" onClick={fetchOrders}>አድስ (Refresh)</Button>
+      </div>
+
+      {/* Financial Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-emerald-500/10 border border-emerald-500/30 p-5 rounded-xl">
+          <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wider">ጠቅላላ የተሰበሰበ ገቢ (Total Revenue)</p>
+          <p className="text-3xl font-bold text-emerald-600 mt-1">{totalRevenue.toFixed(2)} ETB</p>
+        </div>
+
+        <div className="bg-blue-500/10 border border-blue-500/30 p-5 rounded-xl">
+          <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider">የአድሚን ጠቅላላ ድርሻ (Admin Revenue)</p>
+          <p className="text-3xl font-bold text-blue-600 mt-1">{totalAdminCut.toFixed(2)} ETB</p>
+        </div>
+
+        <div className="bg-indigo-500/10 border border-indigo-500/30 p-5 rounded-xl">
+          <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">የማተሚያ ቤቶች ድርሻ (Shops Total Share)</p>
+          <p className="text-3xl font-bold text-indigo-600 mt-1">{totalShopCut.toFixed(2)} ETB</p>
+        </div>
       </div>
 
       {/* Stats Overview Grid */}
