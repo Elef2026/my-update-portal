@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Printer } from "lucide-react";
+import { Printer, Eye } from "lucide-react";
+import OrderDetailsModal from "@/components/OrderDetailsModal";
 
 export default function ReadyForPrintPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -34,9 +36,10 @@ export default function ReadyForPrintPage() {
 
   if (orders.length === 0) {
     return (
-      <div className="p-8 text-center">
+      <div className="p-8 text-center space-y-4">
         <h2 className="text-2xl font-bold mb-2">ለህትመት የተዘጋጀ የለም</h2>
         <p className="text-muted-foreground">ሁሉም ስራዎች ህትመት ቤቶች ጋር ደርሰዋል።</p>
+        <Button variant="outline" onClick={fetchOrders}>አድስ (Refresh)</Button>
       </div>
     );
   }
@@ -56,7 +59,7 @@ export default function ReadyForPrintPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {orders.map((order) => (
-          <Card key={order.id} className="border-l-4 border-l-indigo-500 shadow-sm">
+          <Card key={order.id} className="border-l-4 border-l-indigo-500 shadow-sm flex flex-col justify-between">
             <CardHeader className="pb-2">
               <CardTitle className="flex justify-between items-start text-lg">
                 <span>{order.customerName}</span>
@@ -66,15 +69,38 @@ export default function ReadyForPrintPage() {
                 <p className="text-xs text-indigo-600 pt-1 font-medium">የሚታተመው: {order.shop.shopName}</p>
               )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <div className="bg-muted p-3 rounded text-sm space-y-1">
-                <p><strong>የተመረጡ አገልግሎቶች:</strong> {order.selectedServices?.join(", ")}</p>
+                <p><strong>የተመረጡ አገልግሎቶች:</strong> {Array.isArray(order.selectedServices) ? order.selectedServices.join(", ") : order.selectedServices}</p>
                 <p><strong>ክፍያ:</strong> {order.totalPaid} ETB</p>
               </div>
+
+              <Button 
+                variant="outline"
+                size="sm"
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary hover:text-primary-foreground font-semibold"
+                onClick={() => setSelectedTask(order)}
+              >
+                <Eye className="w-4 h-4" />
+                <span>ሞር ዲቴል (More Details / መረጃ ማውረጃ)</span>
+              </Button>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Modal */}
+      {selectedTask && (
+        <OrderDetailsModal
+          order={selectedTask}
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onOrderUpdated={() => {
+            setSelectedTask(null);
+            fetchOrders();
+          }}
+        />
+      )}
     </div>
   );
 }

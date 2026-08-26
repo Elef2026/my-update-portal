@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     // Find all completed orders in this date range
     const orders = await prisma.order.findMany({
       where: {
-        status: "DELIVERED_TO_CUSTOMER",
+        status: "PRINTED_AWAITING_SETTLEMENT",
         updatedAt: {
           gte: startDate,
           lte: endDate,
@@ -48,11 +48,6 @@ export async function POST(request: Request) {
       // Add their earnings for this order
       shopStats[shopId].totalEarned += Number(order.shopEarnings);
 
-      // If they collected cash, they owe the admin the total minus their earnings
-      // Wait, if they collected cash, they collected the TOTAL amount. 
-      // They keep their earnings, so they owe Admin: totalPaid - shopEarnings
-      // Or simply, they owe the admin totalPaid, and admin owes them shopEarnings.
-      // Net payout = totalEarned - totalOwed
       if (order.paymentMethod === "CASH_TO_SHOP") {
         shopStats[shopId].totalOwed += Number(order.totalPaid);
       }
@@ -72,7 +67,7 @@ export async function POST(request: Request) {
           totalEarned: stats.totalEarned,
           totalOwed: stats.totalOwed,
           netPayout: netPayout,
-          status: "PENDING",
+          status: "PENDING_SHOP_APPROVAL",
         },
       });
       settlementsCreated.push(settlement);

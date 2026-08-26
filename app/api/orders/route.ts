@@ -96,8 +96,9 @@ export async function GET(request: Request) {
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       include: {
-        shop: { select: { shopName: true, phone: true } },
-        assignedShop: { select: { shopName: true, phone: true } },
+        shop: { select: { shopName: true, phone: true, email: true } },
+        assignedShop: { select: { shopName: true, phone: true, email: true } },
+        files: true,
       }
     });
 
@@ -127,8 +128,8 @@ export async function PATCH(request: Request) {
     const isShop = session.user.role === "PRINT_SHOP";
     const isAdmin = session.user.role === "ADMIN";
     
-    // Only assigned shop can mark as delivered
-    if (isShop && newStatus === "DELIVERED_TO_CUSTOMER") {
+    // Only assigned shop can mark as printed/delivered
+    if (isShop && newStatus === "PRINTED_AWAITING_SETTLEMENT") {
        if (order.shopId !== session.user.id && order.assignedShopId !== session.user.id) {
          return NextResponse.json({ error: "Not assigned to this shop" }, { status: 403 });
        }
@@ -171,8 +172,8 @@ export async function PATCH(request: Request) {
           await sendSmsNotification(updatedOrder.customerPhone, "ውድ ደንበኛ፣ የሰነድ ማደስ ስራው ተጠናቋል! ወደ ማተሚያ ቤት በመሄድ መውሰድ ይችላሉ።");
           break;
           
-        // Stage 4: DELIVERED_TO_CUSTOMER
-        case "DELIVERED_TO_CUSTOMER":
+        // Stage 4: PRINTED_AWAITING_SETTLEMENT
+        case "PRINTED_AWAITING_SETTLEMENT":
           await sendSmsNotification(updatedOrder.customerPhone, `ውድ ${updatedOrder.customerName}፣ አገልግሎታችንን ስለተጠቀሙ እናመሰግናለን! (Thank you for using our service!)`);
           break;
 

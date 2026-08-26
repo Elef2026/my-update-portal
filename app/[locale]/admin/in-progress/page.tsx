@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Clock, CheckCircle, XCircle, AlertCircle, Eye } from "lucide-react";
 import { rejectTaskWithReason } from "@/app/actions/settlement";
+import OrderDetailsModal from "@/components/OrderDetailsModal";
 
 export default function InProgressPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -13,6 +14,7 @@ export default function InProgressPage() {
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -79,9 +81,10 @@ export default function InProgressPage() {
 
   if (orders.length === 0) {
     return (
-      <div className="p-8 text-center">
+      <div className="p-8 text-center space-y-4">
         <h2 className="text-2xl font-bold mb-2">በሂደት ላይ ያሉ ስራዎች የሉም</h2>
         <p className="text-muted-foreground">ምንም አይነት አዲስ ስራ አልተገኘም። (No tasks in progress)</p>
+        <Button variant="outline" onClick={fetchOrders}>አድስ (Refresh)</Button>
       </div>
     );
   }
@@ -104,6 +107,7 @@ export default function InProgressPage() {
           <OrderCard 
             key={order.id} 
             order={order} 
+            onOpenDetails={() => setSelectedTask(order)}
             onSendToPrint={(id) => updateOrderStatus(id, "READY_FOR_PRINT_SHOP")}
             isRejecting={rejectingOrderId === order.id}
             rejectionReason={rejectionReason}
@@ -115,12 +119,26 @@ export default function InProgressPage() {
           />
         ))}
       </div>
+
+      {/* Modal */}
+      {selectedTask && (
+        <OrderDetailsModal
+          order={selectedTask}
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onOrderUpdated={() => {
+            setSelectedTask(null);
+            fetchOrders();
+          }}
+        />
+      )}
     </div>
   );
 }
 
 function OrderCard({ 
   order, 
+  onOpenDetails,
   onSendToPrint, 
   isRejecting, 
   rejectionReason, 
@@ -131,6 +149,7 @@ function OrderCard({
   isSubmitting
 }: { 
   order: any;
+  onOpenDetails: () => void;
   onSendToPrint: (id: string) => void;
   isRejecting: boolean;
   rejectionReason: string;
@@ -188,13 +207,23 @@ function OrderCard({
       
       <CardContent className="space-y-4">
         <div className="bg-muted p-3 rounded text-sm space-y-1">
-          <p><strong>አገልግሎቶች:</strong> {order.selectedServices?.join(", ")}</p>
+          <p><strong>አገልግሎቶች:</strong> {Array.isArray(order.selectedServices) ? order.selectedServices.join(", ") : order.selectedServices}</p>
           <p><strong>ክፍያ:</strong> {order.paymentMethod === "CHAPA" ? "በቻፓ (Admin holds)" : "ጥሬ ገንዘብ (Shop holds)"} ({order.totalPaid} ETB)</p>
         </div>
 
         <div className={`p-2.5 rounded-md text-center font-mono font-bold ${isOverdue ? 'bg-destructive/10 text-destructive' : 'bg-amber-500/10 text-amber-600'}`}>
           {timeLeft}
         </div>
+
+        <Button 
+          variant="outline"
+          size="sm"
+          className="w-full flex items-center justify-center gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground font-semibold"
+          onClick={onOpenDetails}
+        >
+          <Eye className="w-4 h-4" />
+          <span>ሞር ዲቴል (More Details / መረጃ አሻሽል)</span>
+        </Button>
 
         {isRejecting && (
           <div className="space-y-2 pt-2 border-t">
