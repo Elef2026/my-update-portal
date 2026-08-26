@@ -369,52 +369,83 @@ export default function OrderDetailsModal({ order, isOpen, onClose, onOrderUpdat
           </div>
 
           {/* Attachments Section (የተያያዙ ሰነዶች እና ማውረጃዎች) */}
-          <div className="bg-card p-4 rounded-lg border space-y-3">
-            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <Paperclip className="w-4 h-4 text-primary" /> 
-              የተያያዙ ፋይሎች እና ሰነዶች (Submitted Attachments & Documents)
-            </h3>
+          <div className="bg-card p-5 rounded-2xl border space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-primary" /> 
+                የተያያዙ ሰነዶች እና ማስረጃዎች ({allFiles.length} Attachments)
+              </h3>
+              <span className="text-xs text-muted-foreground">ለማውረድ ወይም ለማየት ይጫኑ</span>
+            </div>
 
             {isEditing && (
-              <div className="space-y-1 bg-muted/50 p-3 rounded border mb-3">
+              <div className="space-y-1 bg-muted/50 p-3 rounded-xl border mb-3">
                 <label className="text-xs font-medium text-foreground">የደንበኛ ሰነድ ሊንክ/URL ማስተካከያ (Customer Attachment URL)</label>
                 <Input 
                   value={customerAttachmentUrl} 
                   onChange={(e) => setCustomerAttachmentUrl(e.target.value)}
                   placeholder="https://..."
-                  className="h-8 text-xs font-mono"
+                  className="h-9 text-xs font-mono rounded-lg"
                 />
               </div>
             )}
 
             {allFiles.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic p-3 bg-muted/20 rounded text-center">
-                ምንም የተያያዘ ፋይል የለም (No file attachments uploaded)
-              </p>
+              <div className="p-6 bg-muted/20 border border-dashed rounded-xl text-center space-y-1 text-muted-foreground">
+                <Paperclip className="w-6 h-6 mx-auto opacity-40" />
+                <p className="text-xs italic">ምንም የተያያዘ ፋይል የለም (No file attachments uploaded)</p>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {allFiles.map((file, idx) => {
-                  const isImage = file.url.match(/\.(jpeg|jpg|png|gif|webp)$/i);
+                  const isImage = file.url.match(/\.(jpeg|jpg|png|gif|webp)$/i) || file.url.startsWith("data:image/") || file.type === "IMAGE";
+                  const isPdf = file.url.match(/\.pdf$/i) || file.url.startsWith("data:application/pdf") || file.type === "PDF_DOCUMENT";
+
                   return (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-muted/40 border rounded-lg hover:border-primary/50 transition-colors">
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <div className="p-2 bg-background rounded border shrink-0">
-                          {isImage ? <Eye className="w-4 h-4 text-blue-500" /> : <FileText className="w-4 h-4 text-amber-500" />}
-                        </div>
-                        <div className="overflow-hidden">
-                          <p className="text-xs font-semibold truncate">{file.label}</p>
-                          <p className="text-[10px] text-muted-foreground truncate font-mono">{file.url}</p>
+                    <div key={idx} className="bg-muted/30 border rounded-2xl p-3 flex flex-col justify-between hover:border-primary/50 transition-all shadow-xs group">
+                      <div className="flex items-start gap-3">
+                        {isImage ? (
+                          <div className="w-16 h-16 rounded-xl border bg-background overflow-hidden shrink-0 relative flex items-center justify-center">
+                            <img 
+                              src={file.url} 
+                              alt={file.label} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                            />
+                          </div>
+                        ) : (
+                          <div className={`w-16 h-16 rounded-xl border flex flex-col items-center justify-center shrink-0 ${isPdf ? 'bg-red-500/10 text-red-600 border-red-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
+                            <FileText className="w-6 h-6 mb-0.5" />
+                            <span className="text-[9px] font-black uppercase">{isPdf ? "PDF" : "DOC"}</span>
+                          </div>
+                        )}
+                        <div className="overflow-hidden space-y-1 flex-1">
+                          <p className="text-xs font-bold text-foreground truncate">{file.label}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono truncate">{file.url}</p>
+                          <span className="inline-block text-[9px] font-semibold px-2 py-0.5 bg-background rounded-full border">
+                            {isImage ? "ፎቶ / Image" : isPdf ? "ፒዲኤፍ / PDF" : "ሰነድ / Document"}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0 ml-2">
+
+                      <div className="flex items-center gap-2 mt-3 pt-2 border-t">
                         <a 
                           href={file.url} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground px-2.5 py-1.5 rounded font-medium transition-colors"
+                          className="flex-1 text-center py-1.5 px-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>እይ (Preview)</span>
+                        </a>
+                        <a 
+                          href={file.url} 
+                          download
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="flex-1 text-center py-1.5 px-2 bg-secondary text-secondary-foreground hover:bg-muted-foreground/20 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 border"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          <span>አውርድ/ማየት</span>
+                          <span>አውርድ (Download)</span>
                         </a>
                       </div>
                     </div>

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Paperclip, CheckCircle, Upload, FileText, AlertCircle, Sparkles, Printer, RefreshCw, Check } from "lucide-react";
+import { Paperclip, CheckCircle, Upload, FileText, AlertCircle, Sparkles, Printer, RefreshCw, Check, Banknote, CreditCard, Calendar, User, Phone } from "lucide-react";
 
 interface ServiceItem {
   id: string;
@@ -56,7 +56,7 @@ export default function SplitUpdateForm() {
   const [newGeneral, setNewGeneral] = useState("");
 
   // Files
-  const [fileList, setFileList] = useState<{ fileUrl: string; fileType: string }[]>([]);
+  const [fileList, setFileList] = useState<{ fileUrl: string; fileType: string; fileName?: string }[]>([]);
   const [manualAttachmentUrl, setManualAttachmentUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -154,37 +154,44 @@ export default function SplitUpdateForm() {
     };
   }, [selectedServices, orderType, fullServicePrice, isFourthFreeDiscount, freeThreshold, servicesList]);
 
-  // Convert selected files to Data URLs for instant database upload
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const files = Array.from(e.target.files);
-    
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          setFileList((prev) => [
-            ...prev,
-            { fileUrl: result, fileType: file.type.includes("pdf") ? "PDF_DOCUMENT" : "IMAGE" }
-          ]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.files)) {
+        setFileList((prev) => [...prev, ...data.files]);
+      } else {
+        alert("የፋይል ማያያዝ ስህተት (File upload failed): " + (data.error || ""));
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("የፋይል ማያያዝ ስህተት (Upload error)");
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFileList((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedServices.length === 0 && orderType === "UPDATE_ONLY") {
-      alert("እባክዎ ቢያንስ አንድ ማስተካከያ ይምረጡ! (Please select at least one service)");
+      alert("እባክዎ ቢያንስ አንድ ማስተካከያ ይምረጡ!");
       return;
     }
 
     setIsSubmitting(true);
     
     try {
-      // Build oldData JSON
       const oldDataObj: Record<string, string> = {};
       if (selectedServices.includes("NAME_CHANGE")) {
         if (oldNameAmharic) oldDataObj["ስም (አማርኛ)"] = oldNameAmharic;
@@ -194,7 +201,6 @@ export default function SplitUpdateForm() {
       if (selectedServices.includes("DOB") && oldDob) oldDataObj["የትውልድ ዘመን"] = oldDob;
       if (oldGeneral) oldDataObj["ተጨማሪ መረጃ"] = oldGeneral;
 
-      // Build newData JSON
       const newDataObj: Record<string, string> = {};
       if (selectedServices.includes("NAME_CHANGE")) {
         if (newNameAmharic) newDataObj["ስም (አማርኛ)"] = newNameAmharic;
@@ -203,12 +209,6 @@ export default function SplitUpdateForm() {
       if (selectedServices.includes("PHONE") && newPhone) newDataObj["ስልክ"] = newPhone;
       if (selectedServices.includes("DOB") && newDob) newDataObj["የትውልድ ዘመን"] = newDob;
       if (newGeneral) newDataObj["ተጨማሪ መረጃ"] = newGeneral;
-
-      // Prepare files array
-      const filesPayload = [...fileList];
-      if (manualAttachmentUrl.trim()) {
-        filesPayload.unshift({ fileUrl: manualAttachmentUrl.trim(), fileType: "PRIMARY_DOCUMENT" });
-      }
 
       const payload = {
         customerName,
@@ -219,8 +219,7 @@ export default function SplitUpdateForm() {
         totalPaid: pricingSummary.totalPrice,
         oldData: oldDataObj,
         newData: newDataObj,
-        customerAttachmentUrl: manualAttachmentUrl.trim() || (filesPayload.length > 0 ? filesPayload[0].fileUrl : null),
-        files: filesPayload,
+        files: fileList,
       };
 
       const res = await fetch("/api/orders", {
@@ -231,8 +230,8 @@ export default function SplitUpdateForm() {
       
       if (res.ok) {
         const orderData = await res.json();
-        if (orderData.checkoutUrl) {
-          // Redirect immediately to Chapa Hosted Checkout page
+        
+        if (paymentMethod === "CHAPA" && orderData.checkoutUrl) {
           window.location.href = orderData.checkoutUrl;
           return;
         }
@@ -241,7 +240,7 @@ export default function SplitUpdateForm() {
         window.location.href = "/am/shop/in-progress";
       } else {
         const errData = await res.json();
-        alert("ስህተት ተፈጥሯል (Error submitting order): " + (errData.error || ""));
+        alert("ስህተት ተፈጥሯል: " + (errData.error || ""));
       }
     } catch (err) {
       console.error(err);
@@ -252,38 +251,42 @@ export default function SplitUpdateForm() {
   };
 
   return (
-    <div className="bg-card p-8 rounded-lg shadow-sm border mt-6">
+    <div className="bg-card p-6 sm:p-8 rounded-2xl shadow-sm border mt-6">
       <form onSubmit={handleSubmit} className="space-y-8">
         
-        {/* Section 1: Customer Details */}
         <div>
-          <h2 className="text-xl font-bold mb-4 border-b pb-2">1. የደንበኛ መረጃ (Customer Details)</h2>
+          <h2 className="text-lg sm:text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">1</span>
+            የደንበኛ መረጃ (Customer Details)
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium mb-1 block">የደንበኛ ሙሉ ስም</label>
-              <Input required value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="አበበ ከበደ" />
+              <label className="text-xs font-bold mb-1.5 block text-muted-foreground">የደንበኛ ሙሉ ስም *</label>
+              <Input required value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="ምሳሌ፡ አበበ ከበደ" className="h-11 rounded-xl" />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">ስልክ ቁጥር (Payment & SMS)</label>
-              <Input required value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0911..." />
+              <label className="text-xs font-bold mb-1.5 block text-muted-foreground">ስልክ ቁጥር (10 Digits - Payment & SMS) *</label>
+              <Input required value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="0911223344" className="h-11 rounded-xl font-mono text-xs" />
             </div>
           </div>
         </div>
 
-        {/* Section 2: Order & Payment Type */}
         <div>
-          <h2 className="text-xl font-bold mb-4 border-b pb-2">2. የስራ እና የክፍያ አይነት (Order & Payment Type)</h2>
+          <h2 className="text-lg sm:text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">2</span>
+            የስራ እና የክፍያ መንገድ (Order & Payment Type)
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             <div className="space-y-2">
-              <label className="text-sm font-medium mb-1 block font-semibold">የስራ አይነት (Order Type)</label>
-              <div className="flex flex-col gap-2">
-                <label className={`flex items-start space-x-3 border-2 p-3.5 rounded-xl cursor-pointer transition-all ${orderType === "FULL_SERVICE" ? "border-primary bg-primary/5 font-semibold" : "border-border hover:bg-muted/50"}`}>
+              <label className="text-xs font-bold block text-muted-foreground uppercase tracking-wider">የስራ አይነት (Order Type)</label>
+              <div className="flex flex-col gap-3">
+                <label className={`flex items-start space-x-3 border-2 p-4 rounded-2xl cursor-pointer transition-all ${orderType === "FULL_SERVICE" ? "border-primary bg-primary/5 shadow-sm font-semibold" : "border-border hover:bg-muted/40"}`}>
                   <input type="radio" name="orderType" checked={orderType === "FULL_SERVICE"} onChange={() => setOrderType("FULL_SERVICE")} className="mt-1 h-4 w-4 text-primary" />
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <Printer className="w-4 h-4 text-primary" />
-                      <span>አብዴት እና ፕሪንት (Full Service - Update & Print)</span>
+                      <span className="text-sm">አብዴት እና ፕሪንት (Full Service - Update & Print)</span>
                     </div>
                     <p className="text-xs text-muted-foreground font-normal">
                       የህትመት መነሻ ዋጋ ({fullServicePrice} ETB) + የተመረጡ ማስተካከያዎች ክፍያ
@@ -291,15 +294,15 @@ export default function SplitUpdateForm() {
                   </div>
                 </label>
                 
-                <label className={`flex items-start space-x-3 border-2 p-3.5 rounded-xl cursor-pointer transition-all ${orderType === "UPDATE_ONLY" ? "border-primary bg-primary/5 font-semibold" : "border-border hover:bg-muted/50"}`}>
+                <label className={`flex items-start space-x-3 border-2 p-4 rounded-2xl cursor-pointer transition-all ${orderType === "UPDATE_ONLY" ? "border-primary bg-primary/5 shadow-sm font-semibold" : "border-border hover:bg-muted/40"}`}>
                   <input type="radio" name="orderType" checked={orderType === "UPDATE_ONLY"} onChange={() => setOrderType("UPDATE_ONLY")} className="mt-1 h-4 w-4 text-primary" />
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <RefreshCw className="w-4 h-4 text-primary" />
-                      <span>አብዴት ብቻ (Update Only)</span>
+                      <span className="text-sm">አብዴት ብቻ (Update Only)</span>
                     </div>
                     <p className="text-xs text-muted-foreground font-normal">
-                      የማስተካከያዎች ዋጋ ብቻ (የህትመት ክፍያ አይታሰብም)
+                      የማስተካከያዎች ዋጋ ብቻ (የህትመት ክፍያ 0 ETB)
                     </p>
                   </div>
                 </label>
@@ -307,15 +310,32 @@ export default function SplitUpdateForm() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium mb-1 block font-semibold">የክፍያ መንገድ (Payment Method)</label>
-              <div className="flex flex-col gap-2">
-                <label className={`flex items-center space-x-3 border-2 p-3.5 rounded-xl cursor-pointer transition-all ${paymentMethod === "CHAPA" ? "border-emerald-500 bg-emerald-500/5 font-semibold" : "border-border hover:bg-muted/50"}`}>
-                  <input type="radio" name="paymentMethod" checked={paymentMethod === "CHAPA"} onChange={() => setPaymentMethod("CHAPA")} className="h-4 w-4 text-emerald-600" />
-                  <span>በቻፓ ይከፍላል (Pay via Chapa Online)</span>
+              <label className="text-xs font-bold block text-muted-foreground uppercase tracking-wider">የክፍያ መንገድ (Payment Method)</label>
+              <div className="flex flex-col gap-3">
+                <label className={`flex items-start space-x-3 border-2 p-4 rounded-2xl cursor-pointer transition-all ${paymentMethod === "CHAPA" ? "border-emerald-500 bg-emerald-500/10 shadow-sm font-semibold" : "border-border hover:bg-muted/40"}`}>
+                  <input type="radio" name="paymentMethod" checked={paymentMethod === "CHAPA"} onChange={() => setPaymentMethod("CHAPA")} className="mt-1 h-4 w-4 text-emerald-600" />
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                      <CreditCard className="w-4 h-4" />
+                      <span className="text-sm font-bold">1. በቻፓ ይከፈል (Pay Online via Chapa)</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground font-normal">
+                      📱 ቴሌብር፣ ሲቢኢ ብር፣ አዋሽ ወይም በባንክ ካርድ በቀጥታ ይከፈላል
+                    </p>
+                  </div>
                 </label>
-                <label className={`flex items-center space-x-3 border-2 p-3.5 rounded-xl cursor-pointer transition-all ${paymentMethod === "CASH_TO_SHOP" ? "border-amber-500 bg-amber-500/5 font-semibold" : "border-border hover:bg-muted/50"}`}>
-                  <input type="radio" name="paymentMethod" checked={paymentMethod === "CASH_TO_SHOP"} onChange={() => setPaymentMethod("CASH_TO_SHOP")} className="h-4 w-4 text-amber-600" />
-                  <span>በጥሬ ገንዘብ ለህትመት ቤት (Pay Cash to Shop)</span>
+
+                <label className={`flex items-start space-x-3 border-2 p-4 rounded-2xl cursor-pointer transition-all ${paymentMethod === "CASH_TO_SHOP" ? "border-amber-500 bg-amber-500/10 shadow-sm font-semibold" : "border-border hover:bg-muted/40"}`}>
+                  <input type="radio" name="paymentMethod" checked={paymentMethod === "CASH_TO_SHOP"} onChange={() => setPaymentMethod("CASH_TO_SHOP")} className="mt-1 h-4 w-4 text-amber-600" />
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                      <Banknote className="w-4 h-4" />
+                      <span className="text-sm font-bold">2. እኔ ተቀብዬዋለሁኝ (Cash to Shop)</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground font-normal">
+                      💵 ደንበኛው ክፍያውን በጥሬ ገንዘብ ወይም በባንክ በቀጥታ ለህትመት ቤቱ ከፍሏል
+                    </p>
+                  </div>
                 </label>
               </div>
             </div>
@@ -323,10 +343,12 @@ export default function SplitUpdateForm() {
           </div>
         </div>
 
-        {/* Section 3: Service Selection */}
         <div>
           <div className="flex justify-between items-center border-b pb-2 mb-4">
-            <h2 className="text-xl font-bold">3. ምን ማስተካከል ይፈልጋሉ? (Select Services)</h2>
+            <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">3</span>
+              ምን ማስተካከል ይፈልጋሉ? (Select Services)
+            </h2>
             <span className="text-xs font-semibold text-muted-foreground">
               {loadingConfig ? "ዋጋዎችን በማምጣት ላይ..." : `${servicesList.length} አገልግሎቶች ዝግጁ ናቸው`}
             </span>
@@ -362,172 +384,206 @@ export default function SplitUpdateForm() {
           </div>
         </div>
 
-        {/* Section 4: Dynamic Inputs based on Selection */}
         {selectedServices.length > 0 && (
-          <div>
-            <h2 className="text-xl font-bold mb-4 border-b pb-2">4. የሚስተካከሉ መረጃዎች (Corrections)</h2>
-            <div className="space-y-6">
-              
-              {selectedServices.includes("NAME_CHANGE") && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-muted/20 p-4 rounded-md border">
-                  <div>
-                    <h3 className="font-bold text-destructive mb-2">የተሳሳተው ስም (Old Name)</h3>
-                    <div className="space-y-3">
-                      <Input placeholder="የተሳሳተ ስም በአማርኛ" value={oldNameAmharic} onChange={e => setOldNameAmharic(e.target.value)} />
-                      <Input placeholder="Wrong Name in English" value={oldNameEnglish} onChange={e => setOldNameEnglish(e.target.value)} />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-emerald-500 mb-2">ትክክለኛው ስም (New Name)</h3>
-                    <div className="space-y-3">
-                      <Input placeholder="ትክክለኛ ስም በአማርኛ" value={newNameAmharic} onChange={e => setNewNameAmharic(e.target.value)} />
-                      <Input placeholder="Correct Name in English" value={newNameEnglish} onChange={e => setNewNameEnglish(e.target.value)} />
-                    </div>
-                  </div>
-                </div>
-              )}
+          <div className="space-y-6 bg-muted/20 p-6 rounded-2xl border">
+            <h2 className="text-lg sm:text-xl font-bold border-b pb-2 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">4</span>
+              የሚስተካከሉ መረጃዎች ማስገቢያ (Old vs New Data)
+            </h2>
 
-              {selectedServices.includes("PHONE") && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-muted/20 p-4 rounded-md border">
-                  <div>
-                    <h3 className="font-bold text-destructive mb-2">የተሳሳተ ስልክ (Old Phone)</h3>
-                    <Input placeholder="0911..." value={oldPhone} onChange={e => setOldPhone(e.target.value)} />
+            {selectedServices.includes("NAME_CHANGE") && (
+              <div className="p-4 bg-background rounded-xl border space-y-4">
+                <h3 className="font-bold text-sm text-primary flex items-center gap-2">
+                  <User className="w-4 h-4" /> የስም ለውጥ (Name Change)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground">የነበረው ስም (Old Name - Amharic)</label>
+                    <Input value={oldNameAmharic} onChange={e => setOldNameAmharic(e.target.value)} placeholder="የነበረው ስም በአማርኛ" className="rounded-xl" />
+                    <label className="text-xs font-semibold text-muted-foreground mt-2 block">የነበረው ስም (Old Name - English)</label>
+                    <Input value={oldNameEnglish} onChange={e => setOldNameEnglish(e.target.value)} placeholder="Old Name in English" className="rounded-xl" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-emerald-500 mb-2">ትክክለኛ ስልክ (New Phone)</h3>
-                    <Input placeholder="0922..." value={newPhone} onChange={e => setNewPhone(e.target.value)} />
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-emerald-600">አዲሱ ስም (New Name - Amharic) *</label>
+                    <Input required value={newNameAmharic} onChange={e => setNewNameAmharic(e.target.value)} placeholder="አዲሱ ስም በአማርኛ" className="border-emerald-500/50 rounded-xl" />
+                    <label className="text-xs font-semibold text-emerald-600 mt-2 block">አዲሱ ስም (New Name - English) *</label>
+                    <Input required value={newNameEnglish} onChange={e => setNewNameEnglish(e.target.value)} placeholder="New Name in English" className="border-emerald-500/50 rounded-xl" />
                   </div>
-                </div>
-              )}
-
-              {selectedServices.includes("DOB") && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-muted/20 p-4 rounded-md border">
-                  <div>
-                    <h3 className="font-bold text-destructive mb-2">የተሳሳተ የትውልድ ዘመን (Old DOB)</h3>
-                    <Input placeholder="1990-01-01" value={oldDob} onChange={e => setOldDob(e.target.value)} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-emerald-500 mb-2">ትክክለኛ የትውልድ ዘመን (New DOB)</h3>
-                    <Input placeholder="1995-05-05" value={newDob} onChange={e => setNewDob(e.target.value)} />
-                  </div>
-                </div>
-              )}
-
-              {/* General text for other selected services */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-muted/20 p-4 rounded-md border">
-                <div>
-                  <h3 className="font-bold text-destructive mb-2">የተሳሳተ መረጃ / ቀድሞ የነበረ (Old Data Summary)</h3>
-                  <textarea 
-                    className="w-full min-h-[100px] p-3 text-xs border rounded-md bg-background" 
-                    placeholder="ቀድሞ የነበረውን የተሳሳተ መረጃ አጠቃልለው እዚህ ይፃፉ..."
-                    value={oldGeneral}
-                    onChange={e => setOldGeneral(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <h3 className="font-bold text-emerald-500 mb-2">ትክክለኛ መረጃ / አዲስ የሚቀየር (New Data Summary)</h3>
-                  <textarea 
-                    className="w-full min-h-[100px] p-3 text-xs border rounded-md bg-background" 
-                    placeholder="አዲስ የሚስተካከለውን ትክክለኛ መረጃ አጠቃልለው እዚህ ይፃፉ..."
-                    value={newGeneral}
-                    onChange={e => setNewGeneral(e.target.value)}
-                  />
                 </div>
               </div>
-            </div>
+            )}
+
+            {selectedServices.includes("PHONE") && (
+              <div className="p-4 bg-background rounded-xl border space-y-4">
+                <h3 className="font-bold text-sm text-primary flex items-center gap-2">
+                  <Phone className="w-4 h-4" /> የስልክ ቁጥር ለውጥ (Phone Number)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground">የነበረው ስልክ ቁጥር</label>
+                    <Input value={oldPhone} onChange={e => setOldPhone(e.target.value)} placeholder="09..." className="rounded-xl" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-emerald-600">አዲሱ ስልክ ቁጥር *</label>
+                    <Input required value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="09..." className="border-emerald-500/50 rounded-xl" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedServices.includes("DOB") && (
+              <div className="p-4 bg-background rounded-xl border space-y-4">
+                <h3 className="font-bold text-sm text-primary flex items-center gap-2">
+                  <Calendar className="w-4 h-4" /> የልደት ቀን ለውጥ (Date of Birth)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground">የነበረው የልደት ቀን</label>
+                    <Input value={oldDob} onChange={e => setOldDob(e.target.value)} placeholder="ቀን/ወር/ዓ.ም" className="rounded-xl" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-emerald-600">አዲሱ የልደት ቀን *</label>
+                    <Input required value={newDob} onChange={e => setNewDob(e.target.value)} placeholder="ቀን/ወር/ዓ.ም" className="border-emerald-500/50 rounded-xl" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(selectedServices.includes("PHOTO") || selectedServices.includes("GENDER") || selectedServices.includes("OTHER")) && (
+              <div className="p-4 bg-background rounded-xl border space-y-4">
+                <h3 className="font-bold text-sm text-primary flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> ተጨማሪ መረጃ እና ማብራሪያ (Additional Details)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground">የነበረው ሁኔታ</label>
+                    <Input value={oldGeneral} onChange={e => setOldGeneral(e.target.value)} placeholder="የነበረው..." className="rounded-xl" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-emerald-600">አዲሱ የሚስተካከለው *</label>
+                    <Input required value={newGeneral} onChange={e => setNewGeneral(e.target.value)} placeholder="አዲሱ እንዲሆን የሚፈለገው..." className="border-emerald-500/50 rounded-xl" />
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
-        {/* Section 5: File Attachments */}
         <div>
-          <h2 className="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">5</span>
             <Paperclip className="w-5 h-5 text-primary" />
-            5. ፋይል ማያያዣ (Attachments & Documents)
+            ፋይል ማያያዣ (Attachments & Documents)
           </h2>
 
-          <div className="space-y-4 bg-muted/20 p-6 rounded-md border">
+          <div className="space-y-4 bg-muted/20 p-6 rounded-2xl border">
             <div>
-              <label className="text-xs font-semibold mb-1 block">የደንበኛ ማስረጃ ፋይሎችን ይምረጡ (Select Image / PDF files)</label>
-              <Input type="file" multiple accept="image/*,.pdf" onChange={handleFileChange} className="bg-background" />
+              <label className="text-xs font-bold mb-1.5 block text-muted-foreground">
+                የደንበኛ ማስረጃ ፋይሎችን ይምረጡ (Images / PDFs / Documents)
+              </label>
+              <Input type="file" multiple accept="image/*,.pdf" onChange={handleFileChange} className="bg-background rounded-xl" />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                የታደሰ ሰነድ፣ ፎቶ፣ የልደት ካርድ ወይም የውክልና ሰነድ እዚህ ጋር ያያይዙ።
+              </p>
             </div>
 
             {fileList.length > 0 && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-md">
-                <p className="text-xs font-semibold text-emerald-600 mb-2">የተመረጡ ፋይሎች ({fileList.length}):</p>
-                <ul className="text-xs space-y-1">
+              <div className="p-4 bg-card border rounded-xl space-y-2">
+                <p className="text-xs font-bold text-emerald-600">የተያያዙ ፋይሎች ({fileList.length}):</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {fileList.map((f, idx) => (
-                    <li key={idx} className="flex items-center gap-1.5 text-muted-foreground font-mono">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span>ፋይል #{idx + 1} ({f.fileType})</span>
-                    </li>
+                    <div key={idx} className="flex items-center justify-between p-2.5 bg-muted/50 rounded-xl border text-xs">
+                      <div className="flex items-center gap-2 truncate">
+                        <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span className="truncate font-mono">{f.fileName || `ፋይል #${idx + 1} (${f.fileType})`}</span>
+                      </div>
+                      <button type="button" onClick={() => removeFile(idx)} className="text-destructive font-bold text-xs px-2 hover:bg-destructive/10 rounded">
+                        አጥፋ
+                      </button>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
 
             <div className="pt-2 border-t">
-              <label className="text-xs font-semibold mb-1 block text-muted-foreground">ወይም የፋይል/ሰነድ ሊንክ በቀጥታ ያስገቡ (Optional Document Link/URL)</label>
+              <label className="text-xs font-semibold mb-1 block text-muted-foreground">ወይም የፋይል ሊንክ በቀጥታ ያስገቡ (Optional Document Link/URL)</label>
               <Input 
                 placeholder="https://..." 
                 value={manualAttachmentUrl} 
                 onChange={e => setManualAttachmentUrl(e.target.value)}
-                className="text-xs font-mono bg-background" 
+                className="text-xs font-mono bg-background rounded-xl" 
               />
             </div>
           </div>
         </div>
 
-        {/* Section 6: Comprehensive Pricing Breakdown & Submit */}
-        <div className="bg-primary/5 p-6 rounded-2xl border-2 border-primary/20 space-y-4">
+        <div className="bg-primary/5 p-6 sm:p-8 rounded-3xl border-2 border-primary/20 space-y-6">
           <div className="flex items-center justify-between border-b pb-3">
-            <h3 className="font-bold text-base flex items-center gap-2 text-primary">
+            <h3 className="font-extrabold text-lg flex items-center gap-2 text-primary">
               <Sparkles className="w-5 h-5" />
-              የክፍያ ዝርዝር መግለጫ (Transparent Pricing Breakdown)
+              የክፍያ ዝርዝር ደረሰኝ (Order Pricing & Payment)
             </h3>
-            <span className="text-xs font-semibold bg-primary/10 text-primary px-2.5 py-1 rounded-md">
+            <span className="text-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full">
               {orderType === "FULL_SERVICE" ? "አብዴት + ህትመት" : "አብዴት ብቻ"}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             {orderType === "FULL_SERVICE" && (
-              <div className="bg-card p-3 rounded-xl border">
+              <div className="bg-card p-4 rounded-2xl border shadow-xs">
                 <p className="text-muted-foreground">የፋይዳ ህትመት (Print Base Fee):</p>
-                <p className="text-lg font-bold text-foreground mt-0.5">{pricingSummary.basePrintFee} ETB</p>
+                <p className="text-xl font-black text-foreground mt-1">{pricingSummary.basePrintFee} ETB</p>
               </div>
             )}
 
-            <div className="bg-card p-3 rounded-xl border">
+            <div className="bg-card p-4 rounded-2xl border shadow-xs">
               <p className="text-muted-foreground">የተመረጡ ማስተካከያዎች ({pricingSummary.selectedCount}):</p>
-              <p className="text-lg font-bold text-foreground mt-0.5">{pricingSummary.updatesSubtotal} ETB</p>
+              <p className="text-xl font-black text-foreground mt-1">{pricingSummary.updatesSubtotal} ETB</p>
             </div>
 
             {pricingSummary.discountAmount > 0 && (
-              <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+              <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/30">
                 <p className="text-emerald-700 dark:text-emerald-300 font-semibold">ቅናሽ ({pricingSummary.freeCount} በነፃ):</p>
-                <p className="text-lg font-bold text-emerald-600 mt-0.5">-{pricingSummary.discountAmount} ETB</p>
+                <p className="text-xl font-black text-emerald-600 mt-1">-{pricingSummary.discountAmount} ETB</p>
               </div>
             )}
           </div>
 
-          <div className="flex flex-col md:flex-row justify-between items-center pt-2 border-t">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center pt-4 border-t gap-4">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase">ጠቅላላ የሚከፈል የደንበኛ ዋጋ (Total Customer Price)</p>
-              <p className="text-3xl font-black text-primary">{pricingSummary.totalPrice} ETB</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">ጠቅላላ የሚከፈል የደንበኛ ዋጋ (Total Customer Price)</p>
+              <p className="text-4xl font-black text-primary mt-1">{pricingSummary.totalPrice} ETB</p>
               {pricingSummary.freeCount > 0 && (
-                <span className="inline-block mt-1 px-2.5 py-0.5 bg-emerald-500/20 text-emerald-600 rounded text-xs font-bold border border-emerald-500/30">
+                <span className="inline-block mt-1 px-3 py-1 bg-emerald-500/20 text-emerald-600 rounded-full text-xs font-bold border border-emerald-500/30">
                   🎉 ከ 3 በላይ የተመረጡ {pricingSummary.freeCount} አገልግሎቶች በነፃ (100% Free Discount)!
                 </span>
               )}
             </div>
-            <Button 
-              type="submit" 
-              disabled={isSubmitting || (selectedServices.length === 0 && orderType === "UPDATE_ONLY")} 
-              size="lg" 
-              className="mt-4 md:mt-0 px-8 h-12 text-base font-bold shadow-md"
-            >
-              {isSubmitting ? "በመላክ ላይ..." : "መረጃውን ለአድሚን ላክ (Submit to Admin)"}
-            </Button>
+
+            {/* DYNAMIC SUBMIT BUTTON ACCORDING TO PAYMENT METHOD */}
+            {paymentMethod === "CHAPA" ? (
+              <Button 
+                type="submit" 
+                disabled={isSubmitting || (selectedServices.length === 0 && orderType === "UPDATE_ONLY")} 
+                size="lg" 
+                className="w-full md:w-auto h-14 px-8 rounded-2xl text-base font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-3 transition-all hover:scale-[1.02]"
+              >
+                <CreditCard className="w-5 h-5" />
+                {isSubmitting ? "ወደ ቻፓ በመገናኘት ላይ..." : `በቻፓ ክፈል (${pricingSummary.totalPrice} ETB Pay Online)`}
+              </Button>
+            ) : (
+              <Button 
+                type="submit" 
+                disabled={isSubmitting || (selectedServices.length === 0 && orderType === "UPDATE_ONLY")} 
+                size="lg" 
+                className="w-full md:w-auto h-14 px-8 rounded-2xl text-base font-black bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white shadow-xl shadow-amber-600/20 flex items-center justify-center gap-3 transition-all hover:scale-[1.02]"
+              >
+                <Banknote className="w-5 h-5" />
+                {isSubmitting ? "በመላክ ላይ..." : "ጥሬ ገንዘብ ተቀብያለሁ - ትዕዛዝ ላክ (Submit to Admin)"}
+              </Button>
+            )}
           </div>
         </div>
 
