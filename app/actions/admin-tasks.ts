@@ -6,9 +6,15 @@ import { revalidatePath } from "next/cache";
 export async function getPendingTasks() {
   try {
     const tasks = await prisma.order.findMany({
-      where: { status: "PAID" },
-      include: { shop: true },
-      orderBy: { createdAt: "asc" }
+      where: {
+        status: { in: ["PAID", "PENDING_PAYMENT"] }
+      },
+      include: { 
+        shop: true, 
+        assignedShop: true, 
+        files: true 
+      },
+      orderBy: { createdAt: "desc" }
     });
     return { success: true, data: tasks };
   } catch (error) {

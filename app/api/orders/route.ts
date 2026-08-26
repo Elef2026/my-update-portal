@@ -25,6 +25,8 @@ export async function POST(request: Request) {
       assignedShopId, // Only passed if Admin initiates
       orderType = "FULL_SERVICE",
       paymentMethod = "CHAPA",
+      customerAttachmentUrl,
+      files, // Array of file URLs or objects { fileUrl, fileType }
     } = body;
 
     const isAdminInitiated = session.user.role === "ADMIN";
@@ -33,6 +35,18 @@ export async function POST(request: Request) {
     if (isAdminInitiated) {
       initialPaymentStatus = "PAID";
     }
+
+    // Set order status so Admin pending tasks page immediately sees incoming orders from shops
+    const initialOrderStatus = isAdminInitiated 
+      ? OrderStatus.ADMIN_PROCESSING 
+      : OrderStatus.PAID;
+
+    // Process files array if passed
+    const filesToCreate = Array.isArray(files) && files.length > 0 
+      ? files.map((f: any) => typeof f === "string" ? { fileUrl: f, fileType: "DOCUMENT" } : { fileUrl: f.fileUrl || f.url, fileType: f.fileType || "DOCUMENT" })
+      : [];
+
+    const primaryAttachment = customerAttachmentUrl || (filesToCreate.length > 0 ? filesToCreate[0].fileUrl : null);
 
     const newOrder = await prisma.order.create({
       data: {
@@ -45,17 +59,21 @@ export async function POST(request: Request) {
         customerPhone,
         selectedServices, 
         
-        oldData,
-        newData,
-        totalPaid,
+        oldData: oldData || {},
+        newData: newData || {},
+        totalPaid: totalPaid || 0,
         orderType,
         paymentMethod,
         paymentStatus: initialPaymentStatus as any,
-        
-        // If Admin initiates, they don't pay online now, it bypasses to PAID or ADMIN_PROCESSING.
-        // For Shops, it starts at PENDING_PAYMENT.
-        status: isAdminInitiated ? OrderStatus.ADMIN_PROCESSING : OrderStatus.PENDING_PAYMENT,
+        status: initialOrderStatus,
+        customerAttachmentUrl: primaryAttachment,
+        files: filesToCreate.length > 0 ? { create: filesToCreate } : undefined,
       },
+      include: {
+        shop: { select: { shopName: true, phone: true } },
+        assignedShop: { select: { shopName: true, phone: true } },
+        files: true,
+      }
     });
 
     return NextResponse.json(newOrder, { status: 201 });
