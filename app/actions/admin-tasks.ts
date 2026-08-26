@@ -7,13 +7,14 @@ export async function getPendingTasks() {
   try {
     const tasks = await prisma.order.findMany({
       where: {
+        status: "PAID",
         OR: [
           // 1. Chapa orders that are verified and PAID
-          { paymentMethod: "CHAPA", paymentStatus: "PAID", status: { in: ["PAID", "ADMIN_PROCESSING"] } },
+          { paymentMethod: "CHAPA", paymentStatus: "PAID" },
           // 2. Cash orders submitted directly by print shop
-          { paymentMethod: "CASH_TO_SHOP", status: { in: ["PAID", "ADMIN_PROCESSING"] } },
+          { paymentMethod: "CASH_TO_SHOP" },
           // 3. Admin initiated orders
-          { adminInitiated: true, status: { in: ["PAID", "ADMIN_PROCESSING"] } },
+          { adminInitiated: true },
         ]
       },
       include: { 
@@ -34,7 +35,11 @@ export async function getInProgressTasks() {
   try {
     const tasks = await prisma.order.findMany({
       where: { status: "ADMIN_PROCESSING" },
-      include: { shop: true },
+      include: { 
+        shop: true,
+        assignedShop: true,
+        files: true,
+      },
       orderBy: { createdAt: "asc" }
     });
     return { success: true, data: tasks };
@@ -48,7 +53,11 @@ export async function getReadyForPrintTasks() {
   try {
     const tasks = await prisma.order.findMany({
       where: { status: "READY_FOR_PRINT_SHOP" },
-      include: { shop: true },
+      include: { 
+        shop: true,
+        assignedShop: true,
+        files: true,
+      },
       orderBy: { createdAt: "desc" }
     });
     return { success: true, data: tasks };
@@ -60,9 +69,15 @@ export async function getReadyForPrintTasks() {
 
 export async function startProcessingTask(orderId: string) {
   try {
+    // Default 24 hours deadline from starting moment if not set
+    const defaultDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
     await prisma.order.update({
       where: { id: orderId },
-      data: { status: "ADMIN_PROCESSING" }
+      data: { 
+        status: "ADMIN_PROCESSING",
+        deadline: defaultDeadline,
+      }
     });
     
     // revalidate caches so UI updates instantly
@@ -72,9 +87,9 @@ export async function startProcessingTask(orderId: string) {
     revalidatePath("/en/admin/in-progress");
     
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to update task", error);
-    return { success: false, error: "Failed to start processing task" };
+    return { success: false, error: error?.message || "Failed to start processing task" };
   }
 }
 

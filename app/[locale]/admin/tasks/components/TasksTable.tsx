@@ -27,6 +27,7 @@ export default function TasksTable({ initialTasks }: { initialTasks: any[] }) {
         setTasks((prev) => prev.filter((t) => t.id !== id));
         router.refresh();
         alert("ስራው በሚገባ ተጀምሯል! ወደ 'በሂደት ላይ ያሉ' (In Progress) ገጽ ተዛውሯል።");
+        router.push("/am/admin/in-progress");
       } else {
         alert("ስህተት ተፈጥሯል (Error starting task): " + res.error);
       }
