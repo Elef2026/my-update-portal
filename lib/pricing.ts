@@ -47,6 +47,8 @@ export async function calculateOrderFinances(
   let adminExtraExpense = 0;
   let isFourthFreeDiscount = true;
   let freeThreshold = "AFTER_3";
+  let fullServicePrice = 350;
+  let fullServiceAdminCut = 150;
 
   const pricingsMap = new Map<string, { price: number; adminCut: number; shopCut: number }>();
 
@@ -62,6 +64,8 @@ export async function calculateOrderFinances(
       adminExtraExpense = Number(config.adminExtraExpense || 0);
       isFourthFreeDiscount = config.isFourthFreeDiscount ?? true;
       freeThreshold = config.freeThreshold || "AFTER_3";
+      fullServicePrice = Number(config.fullServicePrice || 350);
+      fullServiceAdminCut = Number(config.fullServiceAdminCut || 150);
 
       config.services.forEach((s) => {
         if (s.isActive) {
@@ -77,7 +81,7 @@ export async function calculateOrderFinances(
     console.error("Failed to load pricing config, using defaults:", e);
   }
 
-  // Determine paid threshold count
+  // Determine paid threshold count for update services
   let maxPaidItems = 999;
   if (isFourthFreeDiscount) {
     if (freeThreshold === "AFTER_1") maxPaidItems = 1;
@@ -86,8 +90,36 @@ export async function calculateOrderFinances(
     else if (freeThreshold === "AFTER_4") maxPaidItems = 4;
   }
 
-  // Build service list with prices
-  const items = selectedServices.map((srv) => {
+  let calculatedTotal = 0;
+  let calculatedAdminCut = 0;
+  let calculatedShopCut = 0;
+  let discountAmount = 0;
+  let freeServicesCount = 0;
+  const breakdownList: PricingBreakdown["breakdownList"] = [];
+
+  // If FULL_SERVICE, include Base Print Fee
+  if (orderType === "FULL_SERVICE") {
+    const fullServiceShopCut = Math.max(0, fullServicePrice - fullServiceAdminCut);
+    calculatedTotal += fullServicePrice;
+    calculatedAdminCut += fullServiceAdminCut;
+    calculatedShopCut += fullServiceShopCut;
+
+    breakdownList.push({
+      serviceType: "FAIDA_PRINT_SERVICE",
+      price: fullServicePrice,
+      adminCut: fullServiceAdminCut,
+      shopCut: fullServiceShopCut,
+      isFree: false,
+    });
+  }
+
+  // Filter out FAIDA_PRINT_ONLY from update services if it's already full service to avoid duplicate print charge
+  const updateServices = (orderType === "FULL_SERVICE")
+    ? selectedServices.filter((s) => s !== "FAIDA_PRINT_ONLY")
+    : selectedServices;
+
+  // Build update service list with prices
+  const items = updateServices.map((srv) => {
     const p = pricingsMap.get(srv) || DEFAULT_SERVICE_PRICES[srv] || { price: 150, adminCut: 75, shopCut: 55 };
     return {
       serviceType: srv,
@@ -97,26 +129,20 @@ export async function calculateOrderFinances(
     };
   });
 
-  // Sort by price descending so customer pays for the top X most expensive, remaining are FREE!
+  // Sort update services by price descending so customer pays for the top X most expensive, remaining are FREE!
   items.sort((a, b) => b.price - a.price);
 
-  let calculatedTotal = 0;
-  let calculatedAdminCut = 0;
-  let calculatedShopCut = 0;
-  let discountAmount = 0;
-  let freeServicesCount = 0;
-
-  const breakdownList = items.map((item, idx) => {
+  items.forEach((item, idx) => {
     const isFree = idx >= maxPaidItems;
     if (isFree) {
       freeServicesCount += 1;
       discountAmount += item.price;
-      return { ...item, isFree: true };
+      breakdownList.push({ ...item, isFree: true });
     } else {
       calculatedTotal += item.price;
       calculatedAdminCut += item.adminCut;
       calculatedShopCut += item.shopCut;
-      return { ...item, isFree: false };
+      breakdownList.push({ ...item, isFree: false });
     }
   });
 
@@ -126,15 +152,9 @@ export async function calculateOrderFinances(
 
   const finalTotalPaid = providedTotalPaid && providedTotalPaid > 0 ? providedTotalPaid : calculatedTotal;
 
-  // Final distribution
+  // Final distribution: Shop earnings = Total - Admin Commission - Server Fee - SMS Fee
   let adminCommission = calculatedAdminCut;
-  let shopEarnings = 0;
-
-  if (orderType === "FULL_SERVICE") {
-    shopEarnings = Math.max(0, finalTotalPaid - adminCommission - serverFee - smsFee);
-  } else {
-    shopEarnings = Math.max(0, finalTotalPaid - adminCommission - serverFee - smsFee);
-  }
+  let shopEarnings = Math.max(0, finalTotalPaid - adminCommission - serverFee - smsFee);
 
   return {
     totalPaid: Number(finalTotalPaid.toFixed(2)),

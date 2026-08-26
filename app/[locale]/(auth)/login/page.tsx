@@ -85,10 +85,23 @@ export default function LoginPage({ params: { locale } }: { params: { locale: st
             )}
           </div>
 
-          <Button type="submit" disabled={isSubmitting} className="w-full mt-6">
+          <Button type="submit" disabled={isSubmitting} className="w-full h-11 mt-6 rounded-xl font-bold text-base bg-gradient-to-r from-primary to-blue-600 hover:from-primary/90 shadow-md">
             {isSubmitting ? "በመግባት ላይ..." : t("loginButton")}
           </Button>
         </form>
+
+        {/* Register Link */}
+        <div className="pt-4 border-t text-center space-y-2">
+          <p className="text-sm text-muted-foreground">
+            አዲስ ማተሚያ ቤት ነዎት?{" "}
+            <a 
+              href={`/${locale}/register`} 
+              className="text-primary font-bold hover:underline inline-flex items-center gap-1"
+            >
+              እዚህ ይመዝገቡ (Register Shop)
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

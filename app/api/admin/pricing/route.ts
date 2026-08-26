@@ -64,6 +64,8 @@ export async function POST(request: Request) {
       adminExtraExpense = 0, 
       isFourthFreeDiscount = true, 
       freeThreshold = "AFTER_3",
+      fullServicePrice = 350,
+      fullServiceAdminCut = 150,
       isUnifiedPricing = false,
       unifiedPrice = 300,
       services = [] 
@@ -80,6 +82,8 @@ export async function POST(request: Request) {
           adminExtraExpense,
           isFourthFreeDiscount,
           freeThreshold,
+          fullServicePrice,
+          fullServiceAdminCut,
           isUnifiedPricing,
           unifiedPrice,
         }
@@ -94,6 +98,8 @@ export async function POST(request: Request) {
           adminExtraExpense,
           isFourthFreeDiscount,
           freeThreshold,
+          fullServicePrice,
+          fullServiceAdminCut,
           isUnifiedPricing,
           unifiedPrice,
         }
