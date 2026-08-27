@@ -1,4 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
+const fs = require("fs");
+const path = require("path");
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -18,6 +21,22 @@ async function main() {
 
   const deletedSettlements = await prisma.weeklySettlement.deleteMany({});
   console.log(`Deleted ${deletedSettlements.count} weekly settlements.`);
+
+  const updatedUsers = await prisma.user.updateMany({
+    data: {
+      walletBalance: 0.00,
+    },
+  });
+  console.log(`Reset wallet balance to 0.00 for ${updatedUsers.count} users.`);
+
+  const uploadDir = path.join(__dirname, "..", "public", "uploads");
+  if (fs.existsSync(uploadDir)) {
+    const files = fs.readdirSync(uploadDir);
+    for (const file of files) {
+      fs.unlinkSync(path.join(uploadDir, file));
+    }
+    console.log(`Cleared ${files.length} physical files from public/uploads.`);
+  }
 
   console.log("Database test data clean up completed successfully!");
 }
