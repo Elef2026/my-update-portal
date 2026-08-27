@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import prisma from "@/lib/prisma";
-import { CheckCircle2, Clock, Printer, DollarSign, Undo2, Archive, ShoppingBag, Settings, Store, Sliders } from "lucide-react";
+import { CheckCircle2, Clock, Printer, DollarSign, Undo2, Archive, ShoppingBag, Settings, Store, Sliders, FileText } from "lucide-react";
 
 export default async function AdminDashboardPage() {
   // Fetch real-time total commission and shop count from DB
@@ -120,6 +120,20 @@ export default async function AdminDashboardPage() {
             </div>
             <Link href="/am/admin/settlements" className="w-full">
               <Button className="w-full bg-emerald-500 hover:bg-emerald-600 font-semibold">ወደ ፋይናንስ ሂድ</Button>
+            </Link>
+          </div>
+
+          {/* Requirements & Guidelines Management */}
+          <div className="bg-card p-6 rounded-xl border-2 border-primary/40 shadow-sm hover:border-primary transition-colors flex flex-col justify-between items-center text-center space-y-4">
+            <div className="flex flex-col items-center">
+              <div className="p-2.5 rounded-2xl bg-primary/10 mb-2">
+                <FileText className="w-8 h-8 text-primary" />
+              </div>
+              <h2 className="text-lg font-bold text-primary">የሰነዶች መመሪያ ማስተካከያ (Manage Guidelines)</h2>
+              <p className="text-muted-foreground text-sm mt-1">ህትመት ቤቶች የሚያዩትን የሰነዶች ዝርዝር፣ ህጎች እና ማሳሰቢያዎች ማስተካከያ ገጽ።</p>
+            </div>
+            <Link href="/am/admin/guidelines" className="w-full">
+              <Button className="w-full bg-primary hover:bg-primary/90 font-bold">መመሪያዎችን አስተዳድር (Edit Guide)</Button>
             </Link>
           </div>
 

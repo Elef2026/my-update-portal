@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
-import { PlusCircle, Clock, Printer, DollarSign, Undo2, History, CheckCircle2 } from "lucide-react";
+import { PlusCircle, Clock, Printer, DollarSign, Undo2, History, CheckCircle2, FileText } from "lucide-react";
 
 export default async function ShopDashboardPage() {
   const session = await getServerSession(authOptions);
@@ -127,7 +127,21 @@ export default async function ShopDashboardPage() {
             </Link>
           </div>
 
-          {/* 5. History / Old Completed */}
+          {/* 5. Requirements and Guidelines Card */}
+          <div className="bg-card p-6 rounded-xl border-2 border-primary/40 shadow-sm hover:border-primary transition-colors flex flex-col justify-between items-center text-center space-y-4">
+            <div className="flex flex-col items-center">
+              <div className="p-2.5 rounded-2xl bg-primary/10 mb-2">
+                <FileText className="w-8 h-8 text-primary" />
+              </div>
+              <h2 className="text-lg font-bold text-primary">የሰነዶች መረጃ እና መስፈርቶች (Requirements Guide)</h2>
+              <p className="text-muted-foreground text-sm mt-1">ለስም፣ እድሜ፣ አድራሻ እና ሌሎች ማስተካከያዎች ደንበኛው ይዞት መምጣት ያለበት ኦሪጅናል ሰነዶች ዝርዝር።</p>
+            </div>
+            <Link href="/am/shop/guidelines" className="w-full">
+              <Button className="w-full bg-primary hover:bg-primary/90 font-bold">የሰነድ ዝርዝር መረጃ እይ</Button>
+            </Link>
+          </div>
+
+          {/* 6. History / Old Completed */}
           <div className="bg-card p-6 rounded-xl border shadow-sm hover:border-slate-500 transition-colors flex flex-col justify-between items-center text-center space-y-4">
             <div className="flex flex-col items-center">
               <History className="w-10 h-10 text-slate-500 mb-2" />

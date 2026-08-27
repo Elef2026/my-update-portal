@@ -450,14 +450,26 @@ export default function SplitUpdateForm() {
         </div>
 
         <div>
-          <div className="flex justify-between items-center border-b pb-2 mb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-2 mb-4">
             <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
               <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">3</span>
               ምን ማስተካከል ይፈልጋሉ? (Select Services)
             </h2>
-            <span className="text-xs font-semibold text-muted-foreground">
-              {loadingConfig ? "ዋጋዎችን በማምጣት ላይ..." : `${servicesList.length} አገልግሎቶች ዝግጁ ናቸው`}
-            </span>
+            <div className="flex items-center gap-3">
+              <a
+                href="/am/shop/guidelines"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border border-blue-500/20 transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>የሚያስፈልጉ ሰነዶች ዝርዝር (Requirements Guide)</span>
+                <ExternalLink className="w-3 h-3 opacity-70" />
+              </a>
+              <span className="text-xs font-semibold text-muted-foreground hidden md:inline">
+                {loadingConfig ? "ዋጋዎችን በማምጣት ላይ..." : `${servicesList.length} አገልግሎቶች`}
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -488,6 +500,57 @@ export default function SplitUpdateForm() {
               );
             })}
           </div>
+
+          {/* Contextual Guidance for Selected Services */}
+          {selectedServices.length > 0 && (
+            <div className="mt-4 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/20 space-y-2">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-xs">
+                <FileText className="w-4 h-4" />
+                <span>ለተመረጡት አገልግሎቶች የሚያስፈልጉ ሰነዶች ማስታወሻ (Required Documents for Selected Items)፦</span>
+              </div>
+              <ul className="text-xs text-foreground/90 space-y-1.5 pl-1">
+                {selectedServices.includes("NAME_CHANGE") && (
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-blue-600">• የስም ለውጥ፦</span>
+                    <span>ለዋናው ስም የፍርድ ቤት ውሳኔ (ክብ ማህተም ያለው)፤ ለአነስተኛ የፊደል ግድፈት መታወቂያ/ፓስፖርት/መንጃ ፈቃድ፤ ለአባት/አያት ስም የአባትነት ወይም የጉዲፈቻ ውሳኔ።</span>
+                  </li>
+                )}
+                {selectedServices.includes("DOB") && (
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-emerald-600">• የትውልድ ቀን፦</span>
+                    <span>የልደት ሰርተፍኬት፣ የነዋሪነት መታወቂያ፣ ፓስፖርት፣ የጡረታ መታወቂያ፣ ወይም የመንጃ ፈቃድ።</span>
+                  </li>
+                )}
+                {selectedServices.includes("ADDRESS") && (
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-purple-600">• የአድራሻ ለውጥ፦</span>
+                    <span>የነዋሪነት መታወቂያ፣ የፍርድ ቤት ውሳኔ፣ የመታወቂያ ደብዳቤ፣ ወይም የመንጃ ፈቃድ።</span>
+                  </li>
+                )}
+                {selectedServices.includes("NATIONALITY") && (
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-indigo-600">• ዜግነት፦</span>
+                    <span>ወደ ኢትዮጵያዊ ለመቀየር ከኢሚግሬሽን የውሳኔ ደብዳቤ ብቻ፤ ወደ ውጭ ዜጋ የውጭ ፓስፖርት እና የሥራ/መኖሪያ ፈቃድ።</span>
+                  </li>
+                )}
+                {(selectedServices.includes("PHONE") || selectedServices.includes("EMAIL")) && (
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-teal-600">• ስልክ / ኢሜይል፦</span>
+                    <span>ምንም ሰነድ አያስፈልግም (የማረጋገጫ ኮድ ስለሚላክ አዲሱን ስልክ መያዝ ብቻ በቂ ነው)።</span>
+                  </li>
+                )}
+                {selectedServices.includes("COURT_ORDER") && (
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-amber-600">• የፍርድ ቤት ውሳኔ፦</span>
+                    <span>ክብ ማህተም ያለው ኦሪጅናል የፍርድ ቤት ውሳኔ።</span>
+                  </li>
+                )}
+              </ul>
+              <p className="text-[11px] text-muted-foreground pt-1 border-t border-blue-500/10">
+                ⚠️ <span className="font-semibold">ማሳሰቢያ፦</span> ሁሉም ሰነዶች ኦሪጅናል እና የአገልግሎት ጊዜያቸው ያላለፈበት (Valid) መሆን አለባቸው።
+              </p>
+            </div>
+          )}
         </div>
 
         {selectedServices.length > 0 && (

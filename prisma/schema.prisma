@@ -249,3 +249,15 @@ model RefundRequest {
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
+
+model SystemGuideline {
+  id           String   @id @default(uuid())
+  title        String   @default("ባለሙያ ጋር ሄደው መረጃዎን ለማስተካከል ሲሄዱ ይዘውት መቅረብ ያለብዎት የሰነድ ዝርዝር")
+  headerNotice String?  @db.Text
+  footerNotice String?  @db.Text
+  contentJson  Json?
+  rawMarkdown  String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+

@@ -36,6 +36,14 @@ export default function DashboardHeader({ user, locale }: DashboardHeaderProps) 
               Update Portal
             </span>
           </Link>
+
+          {/* Quick Guidelines Link */}
+          <Link
+            href={user.role === "ADMIN" ? `/${locale}/admin/guidelines` : `/${locale}/shop/guidelines`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 hover:bg-primary/20 text-primary transition-all border border-primary/20"
+          >
+            <span>📋 የሰነዶች መረጃ (Requirements Guide)</span>
+          </Link>
         </div>
 
         {/* Right side - User Info & Actions */}
